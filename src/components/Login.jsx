@@ -1,6 +1,7 @@
 // src/components/Login.jsx
 import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
+import { Link } from 'react-router-dom';
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -51,11 +52,11 @@ const Login = () => {
   
   return (
     <div className="flex min-h-screen bg-gray-900 text-white">
-      <div className="m-auto w-full max-w-md p-8 bg-gray-800 rounded-lg shadow-lg">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-blue-500">ФСП</h1>
+      <div className="m-auto w-full max-w-md p-5 sm:p-8 bg-gray-800 rounded-lg shadow-lg">
+        <div className="text-center mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-blue-500">ФСП</h1>
           <p className="text-gray-400 mt-2">Федерация Спортивного Программирования</p>
-          <h2 className="text-2xl font-semibold mt-6">Вход в систему</h2>
+          <h2 className="text-xl sm:text-2xl font-semibold mt-4 sm:mt-6">Вход в систему</h2>
         </div>
         
         <form onSubmit={handleSubmit}>
@@ -82,9 +83,9 @@ const Login = () => {
               placeholder="Ваш пароль"
             />
             <div className="flex justify-end mt-1">
-              <a href="/forgot-password" className="text-sm text-blue-500 hover:underline">
+              <Link to="/forgot-password" className="text-sm text-blue-500 hover:underline">
                 Забыли пароль?
-              </a>
+              </Link>
             </div>
           </div>
           
@@ -106,9 +107,9 @@ const Login = () => {
         <div className="mt-6 text-center text-sm">
           <p className="text-gray-400">
             Еще нет аккаунта?{' '}
-            <a href="/register" className="text-blue-500 hover:underline">
+            <Link to="/register" className="text-blue-500 hover:underline">
               Зарегистрироваться
-            </a>
+            </Link>
           </p>
         </div>
       </div>

@@ -1,6 +1,7 @@
 // src/components/Registration.jsx
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import { Link } from 'react-router-dom';
 
 const Registration = () => {
   // Состояния для формы
@@ -33,6 +34,8 @@ const Registration = () => {
         console.error('Ошибка при загрузке регионов:', error.message);
       }
     };
+
+
     
     fetchRegions();
   }, []);
@@ -115,30 +118,45 @@ const Registration = () => {
       
       if (authError) throw authError;
       
+      console.log('Данные авторизации:', authData);
+      
+      // Проверка, что пользователь успешно создан
+      if (!authData?.user || !authData.user.id) {
+        throw new Error('Не удалось создать пользователя');
+      }
+      
       // Сохранение дополнительных данных пользователя в таблицу users
-      if (authData?.user) {
-        const { error: profileError } = await supabase
-          .from('users')
-          .insert([
-            {
-              id: authData.user.id,
-              full_name: formData.full_name,
-              email: formData.email,
-              role: formData.role,
-              region_id: formData.region_id,
-              bio: formData.bio,
-              created_at: new Date()
-            }
-          ]);
-          
-        if (profileError) throw profileError;
+      const userData = {
+        id: authData.user.id,
+        full_name: formData.full_name,
+        email: formData.email,
+        role: formData.role,
+        region_id: formData.region_id ? parseInt(formData.region_id) : null,
+        bio: formData.bio,
+        created_at: new Date()
+      };
+      
+      console.log('Данные пользователя для сохранения:', userData);
+      
+      const { error: profileError } = await supabase
+        .from('users')
+        .insert([userData]);
+        
+      if (profileError) {
+        console.error('Ошибка при сохранении профиля:', profileError);
+        
+        // Если произошла ошибка при сохранении профиля, удаляем созданного пользователя
+        await supabase.auth.admin.deleteUser(authData.user.id);
+        
+        throw new Error(`Ошибка при сохранении профиля: ${profileError.message}`);
       }
       
       alert('Регистрация успешно завершена! Проверьте вашу почту для подтверждения аккаунта.');
-      // Здесь можно добавить перенаправление на страницу входа или профиля
+      // Перенаправление на страницу входа
+      window.location.href = '/login';
       
     } catch (error) {
-      console.error('Ошибка при регистрации:', error.message);
+      console.error('Ошибка при регистрации:', error);
       setErrors({
         submit: error.message
       });
@@ -149,9 +167,9 @@ const Registration = () => {
   
   return (
     <div className="flex min-h-screen bg-gray-900 text-white">
-      <div className="m-auto w-full max-w-md p-8 bg-gray-800 rounded-lg shadow-lg">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-blue-500">ФСП</h1>
+      <div className="m-auto w-full max-w-md p-5 sm:p-8 bg-gray-800 rounded-lg shadow-lg">
+        <div className="text-center mb-6">
+          <h1 className="text-2xl sm:text-3xl font-bold text-blue-500">ФСП</h1>
           <p className="text-gray-400 mt-2">Федерация Спортивного Программирования</p>
         </div>
         
@@ -300,18 +318,18 @@ const Registration = () => {
                 ></textarea>
               </div>
               
-              <div className="flex space-x-4">
+              <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
                 <button
                   type="button"
                   onClick={handlePrevStep}
-                  className="w-1/2 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition"
+                  className="w-full sm:w-1/2 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition"
                 >
                   Назад
                 </button>
                 <button
                   type="button"
                   onClick={handleNextStep}
-                  className="w-1/2 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
+                  className="w-full sm:w-1/2 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
                 >
                   Далее
                 </button>
@@ -325,24 +343,24 @@ const Registration = () => {
               <div className="mb-6 bg-gray-700 p-4 rounded">
                 <h3 className="text-lg font-medium mb-2">Подтверждение данных</h3>
                 
-                <div className="grid grid-cols-2 gap-2 mb-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-1">
                   <span className="text-gray-400">Имя:</span>
                   <span>{formData.full_name}</span>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-2 mb-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-1">
                   <span className="text-gray-400">Email:</span>
                   <span>{formData.email}</span>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-2 mb-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-1">
                   <span className="text-gray-400">Регион:</span>
                   <span>
                     {regions.find(r => r.id === parseInt(formData.region_id))?.name || '-'}
                   </span>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-2 mb-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-1">
                   <span className="text-gray-400">Роль:</span>
                   <span>
                     {formData.role === 'athlete' ? 'Спортсмен' : 
@@ -370,18 +388,18 @@ const Registration = () => {
                 </div>
               )}
               
-              <div className="flex space-x-4">
+              <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
                 <button
                   type="button"
                   onClick={handlePrevStep}
-                  className="w-1/2 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition"
+                  className="w-full sm:w-1/2 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition"
                   disabled={loading}
                 >
                   Назад
                 </button>
                 <button
                   type="submit"
-                  className="w-1/2 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition"
+                  className="w-full sm:w-1/2 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition"
                   disabled={loading}
                 >
                   {loading ? 'Регистрация...' : 'Зарегистрироваться'}
@@ -395,14 +413,13 @@ const Registration = () => {
         <div className="mt-6 text-center text-sm">
           <p className="text-gray-400">
             Уже есть аккаунт?{' '}
-            <a href="/login" className="text-blue-500 hover:underline">
+            <Link to="/login" className="text-blue-500 hover:underline">
               Войти
-            </a>
+            </Link>
           </p>
         </div>
       </div>
     </div>
   );
 };
-
 export default Registration;

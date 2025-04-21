@@ -2,76 +2,70 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { Link, useNavigate } from 'react-router-dom';
+import Navbar from './Navbar';
 
-// Компонент для навигационной панели (можно вынести в отдельный файл)
-const Navbar = ({ user }) => {
-  const [userProfile, setUserProfile] = useState(null);
+// Заменим компонент даты на встроенный DatePicker с кастомными стилями
+const CustomDateTimeInput = ({ value, onChange, placeholder, required = false }) => {
+  // Преобразуем строковое значение в объект Date если оно есть
+  const dateValue = value ? new Date(value) : null;
   
-  useEffect(() => {
-    const fetchUserProfile = async () => {
-      if (!user) return;
-      
-      try {
-        const { data, error } = await supabase
-          .from('users')
-          .select('full_name, role, region_id')
-          .eq('id', user.id)
-          .single();
-          
-        if (error) throw error;
-        setUserProfile(data);
-      } catch (error) {
-        console.error('Ошибка при загрузке профиля:', error.message);
-      }
-    };
-    
-    fetchUserProfile();
-  }, [user]);
+  // Форматируем дату для отображения в инпуте
+  const formatDate = (date) => {
+    if (!date) return '';
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear();
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    return `${day}.${month}.${year} ${hours}:${minutes}`;
+  };
   
-  const handleLogout = async () => {
+  // Обрабатываем изменение инпута
+  const handleChange = (e) => {
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      window.location.href = '/login';
+      // Если поле пустое, возвращаем null
+      if (!e.target.value) {
+        onChange(null);
+        return;
+      }
+      
+      // В противном случае пытаемся преобразовать введенную дату в объект Date
+      // Примечание: здесь можно добавить более сложную логику парсинга
+      // Но для простоты мы просто используем нативный datetime-local
+      const newDate = new Date(e.target.value);
+      if (!isNaN(newDate.getTime())) {
+        onChange(newDate.toISOString());
+      }
     } catch (error) {
-      console.error('Ошибка при выходе:', error.message);
+      console.error('Ошибка при парсинге даты:', error);
     }
   };
   
+  // Преобразуем дату в формат для ввода datetime-local
+  const toDateTimeFormat = (date) => {
+    if (!date) return '';
+    return new Date(date.getTime() - (date.getTimezoneOffset() * 60000))
+      .toISOString()
+      .slice(0, 16);
+  };
+  
   return (
-    <nav className="bg-gray-800 border-b border-gray-700">
-      <div className="container mx-auto px-4">
-        <div className="flex justify-between h-16">
-          <div className="flex items-center">
-            <Link to="/dashboard" className="text-xl font-bold text-blue-500">ФСП</Link>
-            
-            <div className="ml-10 flex space-x-4">
-              <Link to="/dashboard" className="text-gray-300 hover:text-white px-3 py-2 rounded-md">
-                Главная
-              </Link>
-              <Link to="/competitions" className="text-gray-300 hover:text-white px-3 py-2 rounded-md">
-                Соревнования
-              </Link>
-              <Link to="/teams" className="text-gray-300 hover:text-white px-3 py-2 rounded-md">
-                Команды
-              </Link>
-            </div>
-          </div>
-          
-          <div className="flex items-center">
-            <Link to="/profile" className="text-gray-300 hover:text-white px-3 py-2 rounded-md">
-              {userProfile?.full_name || user.email}
-            </Link>
-            <button
-              onClick={handleLogout}
-              className="ml-4 bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-md text-sm"
-            >
-              Выйти
-            </button>
-          </div>
-        </div>
+    <div className="relative">
+      <input
+        type="datetime-local"
+        value={dateValue ? toDateTimeFormat(dateValue) : ''}
+        onChange={handleChange}
+        className="w-full p-2 bg-gray-700 border border-gray-600 rounded focus:outline-none focus:border-blue-500 text-white"
+        placeholder={placeholder}
+        required={required}
+      />
+      {/* Стилизованный индикатор календаря */}
+      <div className="absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none">
+        <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
       </div>
-    </nav>
+    </div>
   );
 };
 
@@ -89,8 +83,8 @@ const CompetitionCreate = () => {
     name: '',
     description: '',
     discipline_id: '',
-    type: 'открытое', // По умолчанию - открытое соревнование
-    region_id: null, // Для региональных соревнований
+    type: 'открытое',
+    region_id: null,
     registration_start_date: '',
     registration_end_date: '',
     start_date: '',
@@ -104,10 +98,59 @@ const CompetitionCreate = () => {
     const fetchUser = async () => {
       const { data } = await supabase.auth.getUser();
       setUser(data?.user || null);
+
+      // Если пользователь получен, сразу проверяем/создаем профиль
+      if (data?.user) {
+        await ensureUserProfile(data.user);
+      }
     };
     
     fetchUser();
   }, []);
+
+  // Функция для проверки и создания профиля пользователя если нужно
+  const ensureUserProfile = async (currentUser) => {
+    try {
+      // Проверяем, существует ли пользователь в таблице users
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('id', currentUser.id)
+        .single();
+        
+      if (userError && userError.code === 'PGRST116') { // Код ошибки "не найдено"
+        console.log('Профиль пользователя не найден, создаем новый');
+        
+        // Если пользователя нет в таблице users, добавляем его
+        const { error: insertError } = await supabase
+          .from('users')
+          .insert([
+            {
+              id: currentUser.id,
+              email: currentUser.email,
+              full_name: currentUser.user_metadata?.full_name || '',
+              created_at: new Date()
+            }
+          ]);
+          
+        if (insertError) {
+          console.error('Ошибка при создании профиля пользователя:', insertError);
+          setError('Не удалось создать профиль пользователя. Пожалуйста, перейдите в раздел "Профиль" и обновите данные.');
+          return false;
+        }
+        
+        return true;
+      } else if (userError) {
+        console.error('Ошибка при проверке профиля пользователя:', userError);
+        return false;
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Ошибка при проверке/создании профиля:', error);
+      return false;
+    }
+  };
   
   // Загрузка справочных данных (дисциплины и регионы)
   useEffect(() => {
@@ -156,6 +199,14 @@ const CompetitionCreate = () => {
       });
     }
   };
+
+  // Обработчик изменения дат
+  const handleDateChange = (value, field) => {
+    setFormData({
+      ...formData,
+      [field]: value
+    });
+  };
   
   // Обработчик отправки формы
   const handleSubmit = async (e) => {
@@ -182,6 +233,17 @@ const CompetitionCreate = () => {
           throw new Error(`Поле "${field}" обязательно для заполнения`);
         }
       }
+
+      // Проверка авторизации и наличия ID пользователя
+      if (!user || !user.id) {
+        throw new Error('Сессия пользователя недействительна. Пожалуйста, войдите снова.');
+      }
+      
+      // Проверим/создадим профиль пользователя
+      const profileExists = await ensureUserProfile(user);
+      if (!profileExists) {
+        throw new Error('Не удалось подтвердить ваш профиль. Возможно, нужно обновить профильные данные.');
+      }
       
       // Отправка данных в базу
       const { data, error } = await supabase
@@ -192,7 +254,7 @@ const CompetitionCreate = () => {
             description: formData.description,
             discipline_id: formData.discipline_id,
             type: formData.type,
-            region_id: formData.region_id,
+            region_id: formData.region_id === '' ? null : formData.region_id,
             registration_start_date: formData.registration_start_date,
             registration_end_date: formData.registration_end_date,
             start_date: formData.start_date,
@@ -200,12 +262,15 @@ const CompetitionCreate = () => {
             max_participants_or_teams: formData.max_participants_or_teams || null,
             organizer_user_id: user.id,
             status: formData.status,
-            created_at: new Date()
+            created_at: new Date().toISOString()
           }
         ])
         .select();
         
-      if (error) throw error;
+      if (error) {
+        console.error('Ошибка при создании соревнования:', error);
+        throw new Error(`Не удалось создать соревнование: ${error.message}`);
+      }
       
       // Перенаправление на страницу созданного соревнования
       alert('Соревнование успешно создано!');
@@ -225,6 +290,18 @@ const CompetitionCreate = () => {
     const regEnd = new Date(formData.registration_end_date);
     const compStart = new Date(formData.start_date);
     const compEnd = new Date(formData.end_date);
+    
+    // Проверка наличия всех дат
+    if (!formData.registration_start_date || !formData.registration_end_date || 
+        !formData.start_date || !formData.end_date) {
+      return null; // Не валидируем, если не все даты выбраны
+    }
+    
+    // Проверка корректности дат
+    if (isNaN(regStart.getTime()) || isNaN(regEnd.getTime()) || 
+        isNaN(compStart.getTime()) || isNaN(compEnd.getTime())) {
+      return 'Введены некорректные даты';
+    }
     
     if (regEnd <= regStart) {
       return 'Дата окончания регистрации должна быть позже даты начала регистрации';
@@ -256,20 +333,20 @@ const CompetitionCreate = () => {
       <Navbar user={user} />
       
       {/* Основной контент */}
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">Создание соревнования</h1>
+      <div className="container mx-auto px-4 py-6 sm:py-8">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-6">
+          <h1 className="text-xl sm:text-2xl font-bold mb-2 sm:mb-0">Создание соревнования</h1>
           
           <Link
             to="/competitions"
-            className="text-gray-300 hover:text-white"
+            className="text-gray-300 hover:text-white mb-4 sm:mb-0"
           >
             ← Вернуться к списку
           </Link>
         </div>
         
         {/* Форма создания соревнования */}
-        <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+        <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 sm:p-6">
           <form onSubmit={handleSubmit}>
             {/* Основная информация */}
             <div className="mb-6">
@@ -325,7 +402,7 @@ const CompetitionCreate = () => {
             <div className="mb-6">
               <h2 className="text-lg font-semibold mb-4">Тип соревнования</h2>
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-gray-300 mb-1">Тип *</label>
                   <select
@@ -380,59 +457,50 @@ const CompetitionCreate = () => {
             <div className="mb-6">
               <h2 className="text-lg font-semibold mb-4">Даты</h2>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-gray-300 mb-1">Начало регистрации *</label>
-                  <input
-                    type="datetime-local"
-                    name="registration_start_date"
+                  <CustomDateTimeInput
                     value={formData.registration_start_date}
-                    onChange={handleChange}
-                    className="w-full p-2 bg-gray-700 border border-gray-600 rounded focus:outline-none focus:border-blue-500"
-                    required
+                    onChange={(value) => handleDateChange(value, 'registration_start_date')}
+                    placeholder="Выберите дату и время"
+                    required={true}
                   />
                 </div>
                 
                 <div>
                   <label className="block text-gray-300 mb-1">Конец регистрации *</label>
-                  <input
-                    type="datetime-local"
-                    name="registration_end_date"
+                  <CustomDateTimeInput
                     value={formData.registration_end_date}
-                    onChange={handleChange}
-                    className="w-full p-2 bg-gray-700 border border-gray-600 rounded focus:outline-none focus:border-blue-500"
-                    required
+                    onChange={(value) => handleDateChange(value, 'registration_end_date')}
+                    placeholder="Выберите дату и время"
+                    required={true}
                   />
                 </div>
                 
                 <div>
                   <label className="block text-gray-300 mb-1">Начало соревнования *</label>
-                  <input
-                    type="datetime-local"
-                    name="start_date"
+                  <CustomDateTimeInput
                     value={formData.start_date}
-                    onChange={handleChange}
-                    className="w-full p-2 bg-gray-700 border border-gray-600 rounded focus:outline-none focus:border-blue-500"
-                    required
+                    onChange={(value) => handleDateChange(value, 'start_date')}
+                    placeholder="Выберите дату и время"
+                    required={true}
                   />
                 </div>
                 
                 <div>
                   <label className="block text-gray-300 mb-1">Конец соревнования *</label>
-                  <input
-                    type="datetime-local"
-                    name="end_date"
+                  <CustomDateTimeInput
                     value={formData.end_date}
-                    onChange={handleChange}
-                    className="w-full p-2 bg-gray-700 border border-gray-600 rounded focus:outline-none focus:border-blue-500"
-                    required
+                    onChange={(value) => handleDateChange(value, 'end_date')}
+                    placeholder="Выберите дату и время"
+                    required={true}
                   />
                 </div>
               </div>
               
               {/* Валидация дат */}
-              {formData.registration_start_date && formData.registration_end_date && 
-               formData.start_date && formData.end_date && validateDates() && (
+              {validateDates() && (
                 <div className="mt-2 p-2 bg-red-900 text-white text-sm rounded">
                   {validateDates()}
                 </div>
@@ -443,8 +511,8 @@ const CompetitionCreate = () => {
             <div className="mb-6">
               <h2 className="text-lg font-semibold mb-4">Статус публикации</h2>
               
-              <div className="flex items-center space-x-4">
-                <label className="inline-flex items-center">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center sm:space-x-4">
+                <label className="inline-flex items-center mb-2 sm:mb-0">
                   <input
                     type="radio"
                     name="status"
@@ -471,10 +539,10 @@ const CompetitionCreate = () => {
             </div>
             
             {/* Кнопки действий */}
-            <div className="flex justify-end space-x-4 mt-8">
+            <div className="flex flex-col sm:flex-row sm:justify-end space-y-3 sm:space-y-0 sm:space-x-4 mt-8">
               <Link
                 to="/competitions"
-                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md transition"
+                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md transition text-center"
               >
                 Отмена
               </Link>

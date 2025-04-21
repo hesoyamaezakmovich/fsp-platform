@@ -2,86 +2,15 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { Link } from 'react-router-dom';
+import Navbar from './Navbar';
 
-// Компонент навигационной панели (аналогичен предыдущим компонентам)
-const Navbar = ({ user }) => {
-  const [userProfile, setUserProfile] = useState(null);
-  
-  useEffect(() => {
-    const fetchUserProfile = async () => {
-      if (!user) return;
-      
-      try {
-        const { data, error } = await supabase
-          .from('users')
-          .select('full_name, role, region_id')
-          .eq('id', user.id)
-          .single();
-          
-        if (error) throw error;
-        setUserProfile(data);
-      } catch (error) {
-        console.error('Ошибка при загрузке профиля:', error.message);
-      }
-    };
-    
-    fetchUserProfile();
-  }, [user]);
-  
-  const handleLogout = async () => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      window.location.href = '/login';
-    } catch (error) {
-      console.error('Ошибка при выходе:', error.message);
-    }
-  };
-  
-  return (
-    <nav className="bg-gray-800 border-b border-gray-700">
-      <div className="container mx-auto px-4">
-        <div className="flex justify-between h-16">
-          <div className="flex items-center">
-            <Link to="/dashboard" className="text-xl font-bold text-blue-500">ФСП</Link>
-            
-            <div className="ml-10 flex space-x-4">
-              <Link to="/dashboard" className="text-gray-300 hover:text-white px-3 py-2 rounded-md">
-                Главная
-              </Link>
-              <Link to="/competitions" className="text-gray-300 hover:text-white px-3 py-2 rounded-md">
-                Соревнования
-              </Link>
-              <Link to="/teams" className="text-gray-300 hover:text-white px-3 py-2 rounded-md">
-                Команды
-              </Link>
-            </div>
-          </div>
-          
-          <div className="flex items-center">
-            <Link to="/profile" className="text-gray-300 hover:text-white px-3 py-2 rounded-md">
-              {userProfile?.full_name || user.email}
-            </Link>
-            <button
-              onClick={handleLogout}
-              className="ml-4 bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-md text-sm"
-            >
-              Выйти
-            </button>
-          </div>
-        </div>
-      </div>
-    </nav>
-  );
-};
-
-// Компонент карточки соревнования (аналогичен компоненту в Dashboard)
+// Компонент карточки соревнования 
 const CompetitionCard = ({ competition }) => {
   return (
-    <div className="bg-gray-800 border border-gray-700 rounded-lg p-5 hover:shadow-lg transition">
-      <div className="flex justify-between items-start">
-        <h3 className="text-lg font-semibold text-white">{competition.name}</h3>
-        <span className={`px-2 py-1 rounded-full text-xs ${
+    <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 sm:p-5 hover:shadow-lg transition">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start">
+        <h3 className="text-lg font-semibold text-white mb-2 sm:mb-0">{competition.name}</h3>
+        <span className={`px-2 py-1 rounded-full text-xs inline-block sm:inline mt-1 sm:mt-0 ${
           competition.status === 'открыта_регистрация' ? 'bg-green-900 text-green-300' :
           competition.status === 'идет_соревнование' ? 'bg-blue-900 text-blue-300' :
           competition.status === 'завершено' ? 'bg-gray-700 text-gray-300' :
@@ -101,28 +30,28 @@ const CompetitionCard = ({ competition }) => {
       </p>
       
       <div className="mt-4 text-sm text-gray-500">
-        <div className="flex justify-between">
-          <span>Начало регистрации:</span>
+        <div className="flex flex-col sm:flex-row sm:justify-between">
+          <span className="mb-1 sm:mb-0">Начало регистрации:</span>
           <span className="text-gray-400">
             {new Date(competition.registration_start_date).toLocaleDateString('ru-RU')}
           </span>
         </div>
-        <div className="flex justify-between mt-1">
-          <span>Конец регистрации:</span>
+        <div className="flex flex-col sm:flex-row sm:justify-between mt-1">
+          <span className="mb-1 sm:mb-0">Конец регистрации:</span>
           <span className="text-gray-400">
             {new Date(competition.registration_end_date).toLocaleDateString('ru-RU')}
           </span>
         </div>
-        <div className="flex justify-between mt-1">
-          <span>Начало соревнования:</span>
+        <div className="flex flex-col sm:flex-row sm:justify-between mt-1">
+          <span className="mb-1 sm:mb-0">Начало соревнования:</span>
           <span className="text-gray-400">
             {new Date(competition.start_date).toLocaleDateString('ru-RU')}
           </span>
         </div>
       </div>
       
-      <div className="mt-4 flex justify-between items-center">
-        <div className="flex space-x-2">
+      <div className="mt-4 flex flex-col sm:flex-row sm:justify-between sm:items-center">
+        <div className="flex flex-wrap gap-2 mb-2 sm:mb-0">
           <span className={`px-2 py-1 bg-gray-700 rounded-full text-xs ${
             competition.type === 'открытое' ? 'text-green-400' :
             competition.type === 'региональное' ? 'text-yellow-400' :
@@ -160,6 +89,9 @@ const CompetitionsList = () => {
     discipline_id: '',
     search: ''
   });
+  
+  // Состояние для мобильного вида фильтров
+  const [showFilters, setShowFilters] = useState(false);
   
   // Справочные данные
   const [disciplines, setDisciplines] = useState([]);
@@ -272,6 +204,11 @@ const CompetitionsList = () => {
     });
   };
   
+  // Показ/скрытие фильтров на мобильных устройствах
+  const toggleFilters = () => {
+    setShowFilters(!showFilters);
+  };
+  
   // Показ индикатора загрузки
   if (!user) {
     return (
@@ -287,21 +224,31 @@ const CompetitionsList = () => {
       <Navbar user={user} />
       
       {/* Основной контент */}
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-2xl font-bold">Соревнования</h1>
+      <div className="container mx-auto px-4 py-6 sm:py-8">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 sm:mb-8">
+          <h1 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-0">Соревнования</h1>
           
-          <Link
-            to="/competitions/create"
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition"
-          >
-            Создать соревнование
-          </Link>
+          <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
+            {/* Кнопка для показа/скрытия фильтров на мобильных устройствах */}
+            <button
+              onClick={toggleFilters}
+              className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md transition sm:hidden"
+            >
+              {showFilters ? 'Скрыть фильтры' : 'Показать фильтры'}
+            </button>
+            
+            <Link
+              to="/competitions/create"
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition text-center"
+            >
+              Создать соревнование
+            </Link>
+          </div>
         </div>
         
         {/* Фильтры */}
-        <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div className={`bg-gray-800 border border-gray-700 rounded-lg p-4 mb-6 sm:mb-8 ${!showFilters ? 'hidden sm:block' : ''}`}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
             <div>
               <label className="block text-gray-300 text-sm mb-1">Поиск по названию</label>
               <input
@@ -383,12 +330,7 @@ const CompetitionsList = () => {
           <div className="text-center py-10 bg-red-900 text-white rounded-lg">
             <div className="text-lg">{error}</div>
             <button
-              onClick={() => setFilters({
-                type: '',
-                status: '',
-                discipline_id: '',
-                search: ''
-              })}
+              onClick={resetFilters}
               className="mt-4 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-md"
             >
               Попробовать снова
@@ -411,13 +353,13 @@ const CompetitionsList = () => {
             )}
             <Link
               to="/competitions/create"
-              className="mt-4 ml-4 inline-block px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition"
+              className="mt-4 ml-0 sm:ml-4 inline-block px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition"
             >
               Создать соревнование
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {competitions.map(competition => (
               <CompetitionCard 
                 key={competition.id} 

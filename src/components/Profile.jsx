@@ -2,78 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { Link } from 'react-router-dom';
-
-// Компонент навигационной панели (аналогичен другим компонентам)
-const Navbar = ({ user }) => {
-  const [userProfile, setUserProfile] = useState(null);
-  
-  useEffect(() => {
-    const fetchUserProfile = async () => {
-      if (!user) return;
-      
-      try {
-        const { data, error } = await supabase
-          .from('users')
-          .select('full_name, role, region_id')
-          .eq('id', user.id)
-          .single();
-          
-        if (error) throw error;
-        setUserProfile(data);
-      } catch (error) {
-        console.error('Ошибка при загрузке профиля:', error.message);
-      }
-    };
-    
-    fetchUserProfile();
-  }, [user]);
-  
-  const handleLogout = async () => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      window.location.href = '/login';
-    } catch (error) {
-      console.error('Ошибка при выходе:', error.message);
-    }
-  };
-  
-  return (
-    <nav className="bg-gray-800 border-b border-gray-700">
-      <div className="container mx-auto px-4">
-        <div className="flex justify-between h-16">
-          <div className="flex items-center">
-            <Link to="/dashboard" className="text-xl font-bold text-blue-500">ФСП</Link>
-            
-            <div className="ml-10 flex space-x-4">
-              <Link to="/dashboard" className="text-gray-300 hover:text-white px-3 py-2 rounded-md">
-                Главная
-              </Link>
-              <Link to="/competitions" className="text-gray-300 hover:text-white px-3 py-2 rounded-md">
-                Соревнования
-              </Link>
-              <Link to="/teams" className="text-gray-300 hover:text-white px-3 py-2 rounded-md">
-                Команды
-              </Link>
-            </div>
-          </div>
-          
-          <div className="flex items-center">
-            <Link to="/profile" className="text-gray-300 hover:text-white px-3 py-2 rounded-md">
-              {userProfile?.full_name || user.email}
-            </Link>
-            <button
-              onClick={handleLogout}
-              className="ml-4 bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-md text-sm"
-            >
-              Выйти
-            </button>
-          </div>
-        </div>
-      </div>
-    </nav>
-  );
-};
+import Navbar from './Navbar';
 
 // Основной компонент профиля
 const Profile = () => {
@@ -124,14 +53,42 @@ const Profile = () => {
           .eq('id', user.id)
           .single();
           
-        if (profileError) throw profileError;
-        setProfile(profileData);
-        
-        // Настройка формы редактирования
-        setFormData({
-          full_name: profileData.full_name || '',
-          bio: profileData.bio || ''
-        });
+        // Если профиль не найден, создаем его
+        if (profileError && profileError.code === 'PGRST116') {
+          console.log('Профиль не найден, создаем новый');
+          
+          const { data: newProfileData, error: insertError } = await supabase
+            .from('users')
+            .insert([
+              {
+                id: user.id,
+                email: user.email,
+                full_name: user.user_metadata?.full_name || '',
+                created_at: new Date()
+              }
+            ])
+            .select()
+            .single();
+            
+          if (insertError) {
+            console.error('Ошибка при создании профиля:', insertError);
+            throw new Error('Не удалось создать профиль пользователя');
+          }
+          
+          setProfile(newProfileData);
+          setFormData({
+            full_name: newProfileData.full_name || '',
+            bio: newProfileData.bio || ''
+          });
+        } else if (profileError) {
+          throw profileError;
+        } else {
+          setProfile(profileData);
+          setFormData({
+            full_name: profileData.full_name || '',
+            bio: profileData.bio || ''
+          });
+        }
         
         // Загрузка регионов для выпадающего списка
         const { data: regionsData, error: regionsError } = await supabase
@@ -209,14 +166,14 @@ const Profile = () => {
       <Navbar user={user} />
       
       {/* Основной контент */}
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-2xl font-bold">Профиль пользователя</h1>
+      <div className="container mx-auto px-4 py-6 sm:py-8">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 sm:mb-8">
+          <h1 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-0">Профиль пользователя</h1>
           
           {!editing && (
             <button
               onClick={() => setEditing(true)}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition"
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition w-full sm:w-auto text-center"
             >
               Редактировать профиль
             </button>
@@ -230,7 +187,7 @@ const Profile = () => {
         )}
         
         {/* Профиль или форма редактирования */}
-        <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+        <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 sm:p-6">
           {editing ? (
             // Форма редактирования
             <div>
@@ -258,16 +215,16 @@ const Profile = () => {
                 ></textarea>
               </div>
               
-              <div className="flex space-x-4">
+              <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
                 <button
                   onClick={() => setEditing(false)}
-                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md transition"
+                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md transition w-full sm:w-auto text-center"
                 >
                   Отмена
                 </button>
                 <button
                   onClick={handleSave}
-                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md transition"
+                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md transition w-full sm:w-auto text-center"
                   disabled={loading}
                 >
                   {loading ? 'Сохранение...' : 'Сохранить'}
