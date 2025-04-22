@@ -14,6 +14,9 @@ import ApplicationsManagement from './components/ApplicationsManagement'; // Н�
 import TeamsList from './components/TeamsList'; 
 import TeamDetails from './components/TeamDetails';
 import Profile from './components/Profile';
+import ForgotPassword from './components/ForgotPassword';
+import ResetPassword from './components/ResetPassword';
+import CompetitionEdit from './components/CompetitionEdit';
 
 // Компонент для защищенных маршрутов
 const PrivateRoute = ({ children }) => {
@@ -71,6 +74,8 @@ const App = () => {
         {/* Публичные маршруты */}
         <Route path="/register" element={<Registration />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         
         {/* Защищенные маршруты */}
         <Route path="/dashboard" element={
@@ -119,6 +124,13 @@ const App = () => {
         <Route path="/profile" element={
           <PrivateRoute>
             <Profile />
+          </PrivateRoute>
+        } />
+        
+        {/* Добавляем маршрут для редактирования соревнования */}
+        <Route path="/competitions/:id/edit" element={
+          <PrivateRoute>
+            <CompetitionEdit />
           </PrivateRoute>
         } />
         
