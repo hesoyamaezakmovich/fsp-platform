@@ -132,7 +132,16 @@ const CompetitionDetails = () => {
 
   // Проверка, является ли пользователь капитаном команды
   const isTeamCaptain = (teamId) => {
-    return userTeams.some(team => team.id === teamId);
+    // Получим команду из списка команд пользователя
+    const selectedTeam = userTeams.find(team => team.id === teamId);
+    
+    // Выведем отладочную информацию (потом можно удалить)
+    console.log('Проверка капитана для команды:', teamId);
+    console.log('Пользователь:', user?.id);
+    console.log('Команда найдена:', selectedTeam);
+    
+    // Проверяем, найдена ли команда и является ли пользователь ее капитаном
+    return selectedTeam !== undefined;
   };
 
   // Обработчик изменения выбранной команды
@@ -150,8 +159,17 @@ const CompetitionDetails = () => {
     try {
       setLoading(true);
       
-      // Проверяем, является ли пользователь капитаном команды
-      if (!isTeamCaptain(selectedTeamId)) {
+      // Получаем информацию о выбранной команде
+      const { data: teamData, error: teamError } = await supabase
+        .from('teams')
+        .select('captain_user_id')
+        .eq('id', selectedTeamId)
+        .single();
+        
+      if (teamError) throw teamError;
+      
+      // Проверяем, является ли пользователь капитаном команды напрямую
+      if (teamData.captain_user_id !== user.id) {
         throw new Error('Вы не являетесь капитаном выбранной команды');
       }
       
@@ -305,6 +323,29 @@ const CompetitionDetails = () => {
                 >
                   ← К списку соревнований
                 </Link>
+
+                {competition && user && competition.organizer_user_id === user.id && (
+  <div className="mt-8 bg-gray-800 border border-gray-700 rounded-lg p-6">
+    <h2 className="text-xl font-semibold mb-4">Управление соревнованием</h2>
+    <div className="flex flex-wrap gap-3">
+      <Link
+        to={`/competitions/${id}/applications`}
+        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition"
+      >
+        Просмотр и управление заявками
+      </Link>
+      
+      <Link
+        to={`/competitions/${id}/edit`}
+        className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md transition"
+      >
+        Редактировать соревнование
+      </Link>
+    </div>
+  </div>
+)}
+
+
                 
                 {canApply() && (
                   <button

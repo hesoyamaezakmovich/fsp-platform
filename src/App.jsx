@@ -1,4 +1,4 @@
-// src/App.jsx
+// src/App.jsx с добавленным маршрутом для управления заявками
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
@@ -9,6 +9,10 @@ import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import CompetitionsList from './components/CompetitionsList';
 import CompetitionCreate from './components/CompetitionCreate';
+import CompetitionDetails from './components/CompetitionDetails';
+import ApplicationsManagement from './components/ApplicationsManagement'; // Новый компонент
+import TeamsList from './components/TeamsList'; 
+import TeamDetails from './components/TeamDetails';
 import Profile from './components/Profile';
 
 // Компонент для защищенных маршрутов
@@ -84,6 +88,31 @@ const App = () => {
         <Route path="/competitions/create" element={
           <PrivateRoute>
             <CompetitionCreate />
+          </PrivateRoute>
+        } />
+        
+        <Route path="/competitions/:id" element={
+          <PrivateRoute>
+            <CompetitionDetails />
+          </PrivateRoute>
+        } />
+        
+        {/* Новый маршрут для управления заявками */}
+        <Route path="/competitions/:id/applications" element={
+          <PrivateRoute>
+            <ApplicationsManagement />
+          </PrivateRoute>
+        } />
+        
+        <Route path="/teams" element={
+          <PrivateRoute>
+            <TeamsList />
+          </PrivateRoute>
+        } />
+        
+        <Route path="/teams/:id" element={
+          <PrivateRoute>
+            <TeamDetails />
           </PrivateRoute>
         } />
         

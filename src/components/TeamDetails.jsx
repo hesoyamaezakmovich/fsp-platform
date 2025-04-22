@@ -248,8 +248,7 @@ const TeamDetails = () => {
         .insert([
           {
             team_id: id,
-            user_id: userData.id,
-            joined_at: new Date().toISOString()
+            user_id: userData.id
           }
         ])
         .select();
@@ -577,61 +576,4 @@ const TeamDetails = () => {
   );
 };
 
-export default TeamDetails; заявками на соревнования. Сначала отмените заявки.');
-      }
-      
-      // Удаляем участников команды
-      const { error: membersError } = await supabase
-        .from('team_members')
-        .delete()
-        .eq('team_id', id);
-        
-      if (membersError) throw membersError;
-      
-      // Удаляем саму команду
-      const { error: teamError } = await supabase
-        .from('teams')
-        .delete()
-        .eq('id', id);
-        
-      if (teamError) throw teamError;
-      
-      alert('Команда успешно удалена!');
-      navigate('/teams');
-      
-    } catch (error) {
-      console.error('Ошибка при удалении команды:', error.message);
-      setError(error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Добавление нового участника
-  const addMember = async () => {
-    if (!isTeamCaptain() || !newMemberEmail.trim()) return;
-    
-    try {
-      setAddMemberLoading(true);
-      setAddMemberError(null);
-      
-      // Ищем пользователя по email
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('id, full_name, email')
-        .eq('email', newMemberEmail.trim())
-        .single();
-        
-      if (userError) {
-        throw new Error('Пользователь с таким email не найден');
-      }
-      
-      // Проверяем, не является ли пользователь уже участником команды
-      const isAlreadyMember = teamMembers.some(member => member.user_id === userData.id);
-      
-      if (isAlreadyMember) {
-        throw new Error('Этот пользователь уже является участником команды');
-      }
-      
-      // Проверяем, не является ли пользователь капитаном
-      if (userData.id === team.captain_
+export default TeamDetails;
