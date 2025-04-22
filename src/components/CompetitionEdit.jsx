@@ -1,4 +1,3 @@
-// src/components/CompetitionEdit.jsx
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { Link, useParams, useNavigate } from 'react-router-dom';
@@ -76,6 +75,7 @@ const CompetitionEdit = () => {
   const [disciplines, setDisciplines] = useState([]);
   const [regions, setRegions] = useState([]);
   const [error, setError] = useState(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   
   // Состояние формы
   const [formData, setFormData] = useState({
@@ -246,6 +246,61 @@ const CompetitionEdit = () => {
       
     } catch (error) {
       console.error('Ошибка при обновлении соревнования:', error.message);
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Функция удаления соревнования
+  const handleDelete = async () => {
+    if (!window.confirm('Вы действительно хотите удалить это соревнование? Это действие нельзя отменить.')) {
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      
+      // Проверяем наличие заявок на соревнование
+      const { data: applications, error: applicationsError } = await supabase
+        .from('applications')
+        .select('id, status')
+        .eq('competition_id', id);
+        
+      if (applicationsError) throw applicationsError;
+      
+      // Проверяем наличие активных заявок
+      const activeApplications = applications?.filter(app => 
+        app.status !== 'отклонена' && app.status !== 'отменена'
+      );
+      
+      if (activeApplications?.length > 0) {
+        throw new Error(`У соревнования есть ${activeApplications.length} активных заявок. Сначала нужно отклонить или отменить все заявки.`);
+      }
+      
+      // Удаляем все заявки, связанные с соревнованием
+      if (applications?.length > 0) {
+        const { error: deleteApplicationsError } = await supabase
+          .from('applications')
+          .delete()
+          .eq('competition_id', id);
+          
+        if (deleteApplicationsError) throw deleteApplicationsError;
+      }
+      
+      // Удаляем соревнование
+      const { error: deleteError } = await supabase
+        .from('competitions')
+        .delete()
+        .eq('id', id);
+        
+      if (deleteError) throw deleteError;
+      
+      alert('Соревнование успешно удалено!');
+      navigate('/competitions');
+      
+    } catch (error) {
+      console.error('Ошибка при удалении соревнования:', error.message);
       setError(error.message);
     } finally {
       setLoading(false);
@@ -508,23 +563,37 @@ const CompetitionEdit = () => {
             </div>
             
             {/* Кнопки действий */}
-            <div className="flex flex-col sm:flex-row sm:justify-end space-y-3 sm:space-y-0 sm:space-x-4 mt-8">
-              <Link
-                to={`/competitions/${id}`}
-                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md transition text-center"
-              >
-                Отмена
-              </Link>
+            <div className="flex flex-col sm:flex-row sm:justify-between space-y-3 sm:space-y-0 sm:space-x-4 mt-8">
+              <div>
+                {/* Кнопка удаления слева */}
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteModal(true)}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md transition"
+                  disabled={loading}
+                >
+                  Удалить соревнование
+                </button>
+              </div>
               
-              <button
-                type="submit"
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition"
-                disabled={loading}
-              >
-                {loading ? 'Сохранение...' : 'Сохранить изменения'}
-              </button>
+              <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
+                <Link
+                  to={`/competitions/${id}`}
+                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md transition text-center"
+                >
+                  Отмена
+                </Link>
+                
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition"
+                  disabled={loading}
+                >
+                  {loading ? 'Сохранение...' : 'Сохранить изменения'}
+                </button>
+              </div>
             </div>
-            
+
             {/* Показ ошибок */}
             {error && (
               <div className="mt-4 p-3 bg-red-900 text-white rounded">
@@ -533,6 +602,38 @@ const CompetitionEdit = () => {
               </div>
             )}
           </form>
+          
+          {/* Модальное окно подтверждения удаления */}
+          {showDeleteModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+              <div className="bg-gray-800 rounded-lg max-w-md w-full p-6 mx-4">
+                <h3 className="text-xl font-semibold mb-4">Удаление соревнования</h3>
+                <p className="mb-6">
+                  Вы действительно хотите удалить соревнование "{formData.name}"? Это действие нельзя отменить.
+                </p>
+                
+                <div className="flex justify-end space-x-3">
+                  <button
+                    onClick={() => setShowDeleteModal(false)}
+                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md transition"
+                  >
+                    Отмена
+                  </button>
+                  
+                  <button
+                    onClick={() => {
+                      setShowDeleteModal(false);
+                      handleDelete();
+                    }}
+                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md transition"
+                    disabled={loading}
+                  >
+                    {loading ? 'Удаление...' : 'Удалить'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

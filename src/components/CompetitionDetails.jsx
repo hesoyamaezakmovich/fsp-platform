@@ -1,3 +1,4 @@
+// src/components/CompetitionDetails.jsx
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
@@ -33,16 +34,36 @@ const CompetitionDetails = () => {
           .from('competitions')
           .select(`
             *,
-            discipline_id:disciplines(name),
-            region_id:regions(name),
-            organizer_user_id:users(full_name, email)
+            disciplines(name),
+            regions(name)
           `)
           .eq('id', id)
           .single();
           
         if (competitionError) throw competitionError;
         
+        // Загрузка информации об организаторе
+        if (competitionData) {
+          const { data: organizerData, error: organizerError } = await supabase
+            .from('users')
+            .select('full_name, email')
+            .eq('id', competitionData.organizer_user_id)
+            .single();
+            
+          if (!organizerError) {
+            competitionData.organizer = organizerData;
+          }
+        }
+        
         setCompetition(competitionData);
+        
+        // Отладка для проверки прав доступа
+        if (competitionData && user) {
+          console.log('Competition ID:', id);
+          console.log('Competition organizer_user_id:', competitionData.organizer_user_id);
+          console.log('Current user ID:', user.id);
+          console.log('Is organizer:', competitionData.organizer_user_id === user.id);
+        }
         
         if (user) {
           const { data: individualApplication } = await supabase
@@ -203,8 +224,28 @@ const CompetitionDetails = () => {
                   ← К списку соревнований
                 </Link>
 
-                {competition && user && competition.organizer_user_id === user.id && (
-                  <div className="mt-8 bg-gray-800 border border-gray-700 rounded-lg p-6">
+                {canApply() && (
+                  <button
+                    onClick={() => setShowTeamApplicationModal(true)}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition"
+                  >
+                    Подать заявку командой
+                  </button>
+                )}
+                
+                {applicationStatus && (
+                  <div className="mt-2 md:mt-0 md:ml-2 inline-block px-3 py-1 rounded-md bg-gray-800 text-sm">
+                    Статус заявки: <span className="font-semibold">{applicationStatus}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Блок управления соревнованием для организатора */}
+            {user && competition && (
+              <div>
+                {user.id === competition.organizer_user_id && (
+                  <div className="mb-6 bg-gray-800 border border-gray-700 rounded-lg p-6">
                     <h2 className="text-xl font-semibold mb-4">Управление соревнованием</h2>
                     <div className="flex flex-wrap gap-3">
                       <Link
@@ -223,23 +264,8 @@ const CompetitionDetails = () => {
                     </div>
                   </div>
                 )}
-
-                {canApply() && (
-                  <button
-                    onClick={() => setShowTeamApplicationModal(true)}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition"
-                  >
-                    Подать заявку командой
-                  </button>
-                )}
-                
-                {applicationStatus && (
-                  <div className="mt-2 md:mt-0 md:ml-2 inline-block px-3 py-1 rounded-md bg-gray-800 text-sm">
-                    Статус заявки: <span className="font-semibold">{applicationStatus}</span>
-                  </div>
-                )}
               </div>
-            </div>
+            )}
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="md:col-span-2">
@@ -254,7 +280,7 @@ const CompetitionDetails = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <p className="text-gray-400 mb-1">Организатор:</p>
-                      <p>{competition.users?.full_name || competition.users?.email || 'Не указан'}</p>
+                      <p>{competition.organizer?.full_name || competition.organizer?.email || 'Не указан'}</p>
                     </div>
                     
                     {competition.type === 'региональное' && (
