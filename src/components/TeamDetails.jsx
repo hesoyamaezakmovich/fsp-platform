@@ -19,6 +19,7 @@ const TeamDetails = () => {
   const [addMemberLoading, setAddMemberLoading] = useState(false);
   const [addMemberError, setAddMemberError] = useState(null);
   const [applications, setApplications] = useState([]);
+  const [joinRequests, setJoinRequests] = useState([]); // Новое состояние для запросов
 
   // Получение текущего пользователя
   useEffect(() => {
@@ -30,7 +31,7 @@ const TeamDetails = () => {
     fetchUser();
   }, []);
 
-  // Загрузка данных команды
+  // Загрузка данных команды и запросов на вступление
   useEffect(() => {
     const fetchTeam = async () => {
       if (!id || !user) return;
@@ -92,9 +93,82 @@ const TeamDetails = () => {
         setLoading(false);
       }
     };
+
+    const fetchJoinRequests = async () => {
+      if (!id || !user) return;
+
+      try {
+        const { data: requestsData, error: requestsError } = await supabase
+          .from('team_join_requests')
+          .select(`
+            id,
+            user_id,
+            competition_id,
+            status,
+            created_at,
+            users (full_name, email),
+            competitions (name)
+          `)
+          .eq('team_id', id)
+          .eq('status', 'pending');
+
+        if (requestsError) throw requestsError;
+
+        setJoinRequests(requestsData || []);
+      } catch (err) {
+        console.error('Ошибка при загрузке запросов на вступление:', err.message);
+        setError('Не удалось загрузить запросы на вступление.');
+      }
+    };
     
     fetchTeam();
+    fetchJoinRequests();
   }, [id, user]);
+
+  // Функция обработки запроса (принять/отклонить)
+  const handleRequestAction = async (requestId, action) => {
+    try {
+      setLoading(true);
+
+      // Обновляем статус запроса
+      const { error: updateError } = await supabase
+        .from('team_join_requests')
+        .update({ status: action })
+        .eq('id', requestId);
+
+      if (updateError) throw updateError;
+
+      if (action === 'accepted') {
+        const request = joinRequests.find(req => req.id === requestId);
+        if (request) {
+          // Добавляем пользователя в команду
+          const { data: memberData, error: insertError } = await supabase
+            .from('team_members')
+            .insert({ team_id: id, user_id: request.user_id })
+            .select(`
+              id,
+              user_id,
+              team_id,
+              users(id, full_name, email)
+            `);
+
+          if (insertError) throw insertError;
+
+          // Обновляем список участников
+          setTeamMembers([...teamMembers, memberData[0]]);
+        }
+      }
+
+      // Обновляем список запросов
+      setJoinRequests(joinRequests.filter(req => req.id !== requestId));
+      alert(`Запрос ${action === 'accepted' ? 'принят' : 'отклонен'}!`);
+    } catch (err) {
+      console.error('Ошибка при обработке запроса:', err.message);
+      setError('Не удалось обработать запрос. Попробуйте снова.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Проверка, является ли текущий пользователь капитаном команды
   const isTeamCaptain = () => {
@@ -214,20 +288,23 @@ const TeamDetails = () => {
   // Добавление нового участника
   const addMember = async () => {
     if (!isTeamCaptain() || !newMemberEmail.trim()) return;
-    
+  
     try {
       setAddMemberLoading(true);
       setAddMemberError(null);
-      
+  
+      // Логируем email для отладки
+      console.log('Trying to find user with email:', newMemberEmail.trim());
+  
       // Ищем пользователя по email
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('id, full_name, email')
         .eq('email', newMemberEmail.trim())
         .single();
-        
+  
       if (userError) {
-        throw new Error('Пользователь с таким email не найден');
+        throw new Error('Пользователь с email "' + newMemberEmail.trim() + '" не найден. Убедитесь, что пользователь зарегистрирован в системе.');
       }
       
       // Проверяем, не является ли пользователь уже участником команды
@@ -251,15 +328,17 @@ const TeamDetails = () => {
             user_id: userData.id
           }
         ])
-        .select();
+        .select(`
+          id,
+          user_id,
+          team_id,
+          users(id, full_name, email)
+        `);
         
       if (memberError) throw memberError;
       
       // Обновляем список участников
-      const newMember = {
-        ...memberData[0],
-        users: userData
-      };
+      const newMember = memberData[0];
       
       setTeamMembers([...teamMembers, newMember]);
       
@@ -442,6 +521,52 @@ const TeamDetails = () => {
                     )}
                   </div>
                 </div>
+                
+                {/* Новый раздел для запросов на вступление */}
+                {isTeamCaptain() && (
+                  <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 mb-6">
+                    <h2 className="text-xl font-semibold mb-4">Запросы на вступление</h2>
+                    {joinRequests.length === 0 ? (
+                      <p className="text-gray-400">Нет запросов на вступление.</p>
+                    ) : (
+                      <div className="divide-y divide-gray-700">
+                        {joinRequests.map(request => (
+                          <div key={request.id} className="py-3">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <p className="font-medium">
+                                  {request.users?.full_name || request.users?.email}
+                                </p>
+                                <p className="text-sm text-gray-400">
+                                  Соревнование: {request.competitions?.name}
+                                </p>
+                                <p className="text-sm text-gray-400">
+                                  Дата запроса: {formatDate(request.created_at)}
+                                </p>
+                              </div>
+                              <div className="flex space-x-2">
+                                <button
+                                  onClick={() => handleRequestAction(request.id, 'accepted')}
+                                  className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded-md transition text-sm"
+                                  disabled={loading}
+                                >
+                                  Принять
+                                </button>
+                                <button
+                                  onClick={() => handleRequestAction(request.id, 'rejected')}
+                                  className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-md transition text-sm"
+                                  disabled={loading}
+                                >
+                                  Отклонить
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
                 
                 {/* Заявки на соревнования */}
                 <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">

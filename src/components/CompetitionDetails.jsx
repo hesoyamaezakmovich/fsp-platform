@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import Navbar from './Navbar';
 import TeamApplicationForm from './TeamApplicationForm';
+import TeamsLookingForMembers from './TeamsLookingForMembers'; 
 
 const CompetitionDetails = () => {
   const { id } = useParams();
@@ -13,7 +14,6 @@ const CompetitionDetails = () => {
   const [userTeams, setUserTeams] = useState([]);
   const [showTeamApplicationModal, setShowTeamApplicationModal] = useState(false);
   const [applicationStatus, setApplicationStatus] = useState(null);
-  const [teamsSeekingMembers, setTeamsSeekingMembers] = useState([]);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -33,9 +33,9 @@ const CompetitionDetails = () => {
           .from('competitions')
           .select(`
             *,
-            disciplines(name),
-            regions(name),
-            users(full_name, email)
+            discipline_id:disciplines(name),
+            region_id:regions(name),
+            organizer_user_id:users(full_name, email)
           `)
           .eq('id', id)
           .single();
@@ -79,23 +79,6 @@ const CompetitionDetails = () => {
             setApplicationStatus(individualApplication.status);
           }
         }
-
-        const { data: teamsSeekingData, error: teamsSeekingError } = await supabase
-          .from('applications')
-          .select(`
-            id,
-            applicant_team_id,
-            additional_data,
-            teams!applicant_team_id(name, captain_user_id, users!captain_user_id(full_name, email))
-          `)
-          .eq('competition_id', id)
-          .eq('status', 'формируется');
-
-        if (teamsSeekingError) throw teamsSeekingError;
-        setTeamsSeekingMembers(teamsSeekingData.map(app => ({
-          ...app,
-          additional_data: app.additional_data ? (typeof app.additional_data === 'string' ? JSON.parse(app.additional_data) : app.additional_data) : null,
-        })) || []);
       } catch (error) {
         console.error('Ошибка при загрузке соревнования:', error.message);
         setError('Не удалось загрузить данные соревнования. Попробуйте позже.');
@@ -120,25 +103,6 @@ const CompetitionDetails = () => {
 
     if (teamApplications) {
       setApplicationStatus(teamApplications.status);
-    }
-    const { data: teamsSeekingData, error: teamsSeekingError } = await supabase
-      .from('applications')
-      .select(`
-        id,
-        applicant_team_id,
-        additional_data,
-        teams!applicant_team_id(name, captain_user_id, users!captain_user_id(full_name, email))
-      `)
-      .eq('competition_id', id)
-      .eq('status', 'формируется');
-
-    if (teamsSeekingError) {
-      console.error('Ошибка при обновлении команд:', teamsSeekingError.message);
-    } else {
-      setTeamsSeekingMembers(teamsSeekingData.map(app => ({
-        ...app,
-        additional_data: app.additional_data ? (typeof app.additional_data === 'string' ? JSON.parse(app.additional_data) : app.additional_data) : null,
-      })) || []);
     }
   };
 
@@ -336,31 +300,10 @@ const CompetitionDetails = () => {
               </div>
             </div>
             
-            <div className="mt-6 bg-gray-800 border border-gray-700 rounded-lg p-6">
-              <h2 className="text-xl font-semibold mb-4">Команды, ищущие участников</h2>
-              {teamsSeekingMembers.length === 0 ? (
-                <p className="text-gray-400">Нет команд, ищущих участников.</p>
-              ) : (
-                <div className="space-y-4">
-                  {teamsSeekingMembers.map((app) => {
-                    console.log('Application:', app);
-                    console.log('Additional Data:', app.additional_data);
-                    return (
-                      <div key={app.id} className="bg-gray-700 p-4 rounded-lg">
-                        <h3 className="text-md font-semibold">{app.teams?.name}</h3>
-                        <p><strong>Капитан:</strong> {app.teams?.users?.full_name || app.teams?.users?.email}</p>
-                        {app.additional_data && (
-                          <>
-                            <p><strong>Требуется участников:</strong> {app.additional_data.required_members}</p>
-                            <p><strong>Роли:</strong> {app.additional_data.roles_needed}</p>
-                          </>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+            {/* Заменяем текущий раздел на компонент TeamsLookingForMembers */}
+            {user && (
+              <TeamsLookingForMembers competitionId={id} currentUser={user} />
+            )}
             
             {showTeamApplicationModal && (
               <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
