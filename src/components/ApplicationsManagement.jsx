@@ -11,6 +11,7 @@ const ApplicationsManagement = () => {
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [activeTab, setActiveTab] = useState(null); // Добавляем состояние для активной вкладки
 
   // Получение текущего пользователя
   useEffect(() => {

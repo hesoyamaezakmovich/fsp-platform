@@ -1,8 +1,8 @@
-// src/components/CompetitionDetails.jsx
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import Navbar from './Navbar';
+import TeamApplicationForm from './TeamApplicationForm';
 
 const CompetitionDetails = () => {
   const { id } = useParams();
@@ -12,11 +12,9 @@ const CompetitionDetails = () => {
   const [error, setError] = useState(null);
   const [userTeams, setUserTeams] = useState([]);
   const [showTeamApplicationModal, setShowTeamApplicationModal] = useState(false);
-  const [selectedTeamId, setSelectedTeamId] = useState('');
-  const [teamMembers, setTeamMembers] = useState([]);
   const [applicationStatus, setApplicationStatus] = useState(null);
+  const [teamsSeekingMembers, setTeamsSeekingMembers] = useState([]);
 
-  // Получение текущего пользователя
   useEffect(() => {
     const fetchUser = async () => {
       const { data } = await supabase.auth.getUser();
@@ -26,13 +24,11 @@ const CompetitionDetails = () => {
     fetchUser();
   }, []);
 
-  // Загрузка данных соревнования
   useEffect(() => {
     const fetchCompetition = async () => {
       try {
         setLoading(true);
         
-        // Получаем данные соревнования
         const { data: competitionData, error: competitionError } = await supabase
           .from('competitions')
           .select(`
@@ -48,9 +44,7 @@ const CompetitionDetails = () => {
         
         setCompetition(competitionData);
         
-        // Проверяем, подал ли пользователь уже заявку
         if (user) {
-          // Проверка индивидуальной заявки
           const { data: individualApplication } = await supabase
             .from('applications')
             .select('id, status')
@@ -58,7 +52,6 @@ const CompetitionDetails = () => {
             .eq('applicant_user_id', user.id)
             .maybeSingle();
           
-          // Получаем команды пользователя (где он капитан)
           const { data: teamsData, error: teamsError } = await supabase
             .from('teams')
             .select('id, name')
@@ -67,7 +60,6 @@ const CompetitionDetails = () => {
           if (teamsError) throw teamsError;
           setUserTeams(teamsData || []);
           
-          // Проверяем заявки от команд пользователя
           if (teamsData && teamsData.length > 0) {
             const teamIds = teamsData.map(team => team.id);
             
@@ -80,7 +72,6 @@ const CompetitionDetails = () => {
               
             if (teamApplications) {
               setApplicationStatus(teamApplications.status);
-              setSelectedTeamId(teamApplications.applicant_team_id);
             } else if (individualApplication) {
               setApplicationStatus(individualApplication.status);
             }
@@ -88,6 +79,23 @@ const CompetitionDetails = () => {
             setApplicationStatus(individualApplication.status);
           }
         }
+
+        const { data: teamsSeekingData, error: teamsSeekingError } = await supabase
+          .from('applications')
+          .select(`
+            id,
+            applicant_team_id,
+            additional_data,
+            teams!applicant_team_id(name, captain_user_id, users!captain_user_id(full_name, email))
+          `)
+          .eq('competition_id', id)
+          .eq('status', 'формируется');
+
+        if (teamsSeekingError) throw teamsSeekingError;
+        setTeamsSeekingMembers(teamsSeekingData.map(app => ({
+          ...app,
+          additional_data: app.additional_data ? (typeof app.additional_data === 'string' ? JSON.parse(app.additional_data) : app.additional_data) : null,
+        })) || []);
       } catch (error) {
         console.error('Ошибка при загрузке соревнования:', error.message);
         setError('Не удалось загрузить данные соревнования. Попробуйте позже.');
@@ -101,128 +109,39 @@ const CompetitionDetails = () => {
     }
   }, [id, user]);
 
-  // Загрузка участников команды при выборе команды
-  useEffect(() => {
-    const fetchTeamMembers = async () => {
-      if (!selectedTeamId) {
-        setTeamMembers([]);
-        return;
-      }
-      
-      try {
-        const { data: membersData, error: membersError } = await supabase
-          .from('team_members')
-          .select(`
-            user_id,
-            users(id, full_name, email)
-          `)
-          .eq('team_id', selectedTeamId);
-          
-        if (membersError) throw membersError;
-        
-        setTeamMembers(membersData?.map(member => member.users) || []);
-      } catch (error) {
-        console.error('Ошибка при загрузке участников команды:', error.message);
-        setError('Не удалось загрузить участников команды. Попробуйте позже.');
-      }
-    };
-    
-    fetchTeamMembers();
-  }, [selectedTeamId]);
+  const handleTeamApplicationSuccess = async () => {
+    setShowTeamApplicationModal(false);
+    const { data: teamApplications } = await supabase
+      .from('applications')
+      .select('id, applicant_team_id, status')
+      .eq('competition_id', id)
+      .in('applicant_team_id', userTeams.map(team => team.id))
+      .maybeSingle();
 
-  // Проверка, является ли пользователь капитаном команды
-  const isTeamCaptain = (teamId) => {
-    // Получим команду из списка команд пользователя
-    const selectedTeam = userTeams.find(team => team.id === teamId);
-    
-    // Выведем отладочную информацию (потом можно удалить)
-    console.log('Проверка капитана для команды:', teamId);
-    console.log('Пользователь:', user?.id);
-    console.log('Команда найдена:', selectedTeam);
-    
-    // Проверяем, найдена ли команда и является ли пользователь ее капитаном
-    return selectedTeam !== undefined;
-  };
-
-  // Обработчик изменения выбранной команды
-  const handleTeamChange = (e) => {
-    setSelectedTeamId(e.target.value);
-  };
-
-  // Отправка заявки от команды
-  const submitTeamApplication = async () => {
-    if (!selectedTeamId) {
-      setError('Выберите команду для участия в соревновании');
-      return;
+    if (teamApplications) {
+      setApplicationStatus(teamApplications.status);
     }
-    
-    try {
-      setLoading(true);
-      
-      // Получаем информацию о выбранной команде
-      const { data: teamData, error: teamError } = await supabase
-        .from('teams')
-        .select('captain_user_id')
-        .eq('id', selectedTeamId)
-        .single();
-        
-      if (teamError) throw teamError;
-      
-      // Проверяем, является ли пользователь капитаном команды напрямую
-      if (teamData.captain_user_id !== user.id) {
-        throw new Error('Вы не являетесь капитаном выбранной команды');
-      }
-      
-      // Проверяем, есть ли участники в команде
-      if (teamMembers.length === 0) {
-        throw new Error('В команде должен быть хотя бы один участник');
-      }
-      
-      // Проверяем, не подана ли уже заявка от этой команды
-      const { data: existingApp, error: checkError } = await supabase
-        .from('applications')
-        .select('id')
-        .eq('competition_id', id)
-        .eq('applicant_team_id', selectedTeamId)
-        .maybeSingle();
-        
-      if (checkError) throw checkError;
-      
-      if (existingApp) {
-        throw new Error('От этой команды уже подана заявка на это соревнование');
-      }
-      
-      // Создаем новую заявку
-      const { data, error } = await supabase
-        .from('applications')
-        .insert([
-          {
-            competition_id: id,
-            applicant_team_id: selectedTeamId,
-            applicant_user_id: null,
-            application_type: 'командная',
-            submitted_by_user_id: user.id,
-            status: 'на_рассмотрении',
-            submitted_at: new Date().toISOString()
-          }
-        ])
-        .select();
-        
-      if (error) throw error;
-      
-      setApplicationStatus('на_рассмотрении');
-      setShowTeamApplicationModal(false);
-      alert('Заявка успешно отправлена!');
-      
-    } catch (error) {
-      console.error('Ошибка при отправке заявки:', error.message);
-      setError(error.message);
-    } finally {
-      setLoading(false);
+    const { data: teamsSeekingData, error: teamsSeekingError } = await supabase
+      .from('applications')
+      .select(`
+        id,
+        applicant_team_id,
+        additional_data,
+        teams!applicant_team_id(name, captain_user_id, users!captain_user_id(full_name, email))
+      `)
+      .eq('competition_id', id)
+      .eq('status', 'формируется');
+
+    if (teamsSeekingError) {
+      console.error('Ошибка при обновлении команд:', teamsSeekingError.message);
+    } else {
+      setTeamsSeekingMembers(teamsSeekingData.map(app => ({
+        ...app,
+        additional_data: app.additional_data ? (typeof app.additional_data === 'string' ? JSON.parse(app.additional_data) : app.additional_data) : null,
+      })) || []);
     }
   };
 
-  // Показать индикатор загрузки
   if (loading && !competition) {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
@@ -231,7 +150,6 @@ const CompetitionDetails = () => {
     );
   }
 
-  // Показать сообщение об ошибке
   if (error && !competition) {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
@@ -240,14 +158,12 @@ const CompetitionDetails = () => {
     );
   }
 
-  // Форматирование даты
   const formatDate = (dateString) => {
     if (!dateString) return '';
     const date = new Date(dateString);
     return date.toLocaleString('ru-RU');
   };
 
-  // Определение текущего статуса соревнования
   const getCompetitionStatus = () => {
     if (!competition) return '';
     
@@ -270,7 +186,6 @@ const CompetitionDetails = () => {
     }
   };
 
-  // Проверка, может ли пользователь подать заявку
   const canApply = () => {
     if (!user || !competition) return false;
     
@@ -325,28 +240,26 @@ const CompetitionDetails = () => {
                 </Link>
 
                 {competition && user && competition.organizer_user_id === user.id && (
-  <div className="mt-8 bg-gray-800 border border-gray-700 rounded-lg p-6">
-    <h2 className="text-xl font-semibold mb-4">Управление соревнованием</h2>
-    <div className="flex flex-wrap gap-3">
-      <Link
-        to={`/competitions/${id}/applications`}
-        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition"
-      >
-        Просмотр и управление заявками
-      </Link>
-      
-      <Link
-        to={`/competitions/${id}/edit`}
-        className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md transition"
-      >
-        Редактировать соревнование
-      </Link>
-    </div>
-  </div>
-)}
+                  <div className="mt-8 bg-gray-800 border border-gray-700 rounded-lg p-6">
+                    <h2 className="text-xl font-semibold mb-4">Управление соревнованием</h2>
+                    <div className="flex flex-wrap gap-3">
+                      <Link
+                        to={`/competitions/${id}/applications`}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition"
+                      >
+                        Просмотр и управление заявками
+                      </Link>
+                      
+                      <Link
+                        to={`/competitions/${id}/edit`}
+                        className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md transition"
+                      >
+                        Редактировать соревнование
+                      </Link>
+                    </div>
+                  </div>
+                )}
 
-
-                
                 {canApply() && (
                   <button
                     onClick={() => setShowTeamApplicationModal(true)}
@@ -423,68 +336,41 @@ const CompetitionDetails = () => {
               </div>
             </div>
             
-            {/* Модальное окно подачи командной заявки */}
+            <div className="mt-6 bg-gray-800 border border-gray-700 rounded-lg p-6">
+              <h2 className="text-xl font-semibold mb-4">Команды, ищущие участников</h2>
+              {teamsSeekingMembers.length === 0 ? (
+                <p className="text-gray-400">Нет команд, ищущих участников.</p>
+              ) : (
+                <div className="space-y-4">
+                  {teamsSeekingMembers.map((app) => {
+                    console.log('Application:', app);
+                    console.log('Additional Data:', app.additional_data);
+                    return (
+                      <div key={app.id} className="bg-gray-700 p-4 rounded-lg">
+                        <h3 className="text-md font-semibold">{app.teams?.name}</h3>
+                        <p><strong>Капитан:</strong> {app.teams?.users?.full_name || app.teams?.users?.email}</p>
+                        {app.additional_data && (
+                          <>
+                            <p><strong>Требуется участников:</strong> {app.additional_data.required_members}</p>
+                            <p><strong>Роли:</strong> {app.additional_data.roles_needed}</p>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            
             {showTeamApplicationModal && (
               <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
                 <div className="bg-gray-800 rounded-lg max-w-lg w-full p-6 mx-4">
-                  <h3 className="text-xl font-semibold mb-4">Подать заявку командой</h3>
-                  
-                  {error && (
-                    <div className="mb-4 p-3 bg-red-900 text-white rounded-md">
-                      {error}
-                    </div>
-                  )}
-                  
-                  <div className="mb-4">
-                    <label className="block text-gray-300 mb-1">Выберите команду *</label>
-                    <select
-                      value={selectedTeamId}
-                      onChange={handleTeamChange}
-                      className="w-full p-2 bg-gray-700 border border-gray-600 rounded focus:outline-none focus:border-blue-500"
-                      required
-                    >
-                      <option value="">Выберите команду</option>
-                      {userTeams.map(team => (
-                        <option key={team.id} value={team.id}>
-                          {team.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  
-                  {selectedTeamId && (
-                    <div className="mb-6">
-                      <label className="block text-gray-300 mb-2">Участники команды:</label>
-                      {teamMembers.length > 0 ? (
-                        <ul className="bg-gray-700 rounded-md p-3">
-                          {teamMembers.map(member => (
-                            <li key={member.id} className="mb-1">
-                              {member.full_name || member.email}
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="text-yellow-400">У этой команды нет участников. Добавьте участников в профиле команды.</p>
-                      )}
-                    </div>
-                  )}
-                  
-                  <div className="flex justify-end space-x-3">
-                    <button
-                      onClick={() => setShowTeamApplicationModal(false)}
-                      className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md transition"
-                    >
-                      Отмена
-                    </button>
-                    
-                    <button
-                      onClick={submitTeamApplication}
-                      disabled={loading || !selectedTeamId || teamMembers.length === 0}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {loading ? 'Отправка...' : 'Отправить заявку на модерацию'}
-                    </button>
-                  </div>
+                  <TeamApplicationForm
+                    competitionId={id}
+                    user={user}
+                    onSuccess={handleTeamApplicationSuccess}
+                    onCancel={() => setShowTeamApplicationModal(false)}
+                  />
                 </div>
               </div>
             )}
