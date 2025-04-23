@@ -1,14 +1,12 @@
+// src/components/CompetitionEdit.jsx
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import Navbar from './Navbar';
 
-// Компонент ввода даты и времени
 const CustomDateTimeInput = ({ value, onChange, placeholder, required = false }) => {
-  // Преобразуем строковое значение в объект Date если оно есть
   const dateValue = value ? new Date(value) : null;
-  
-  // Форматируем дату для отображения в инпуте
+
   const formatDate = (date) => {
     if (!date) return '';
     const day = date.getDate().toString().padStart(2, '0');
@@ -18,34 +16,29 @@ const CustomDateTimeInput = ({ value, onChange, placeholder, required = false })
     const minutes = date.getMinutes().toString().padStart(2, '0');
     return `${day}.${month}.${year} ${hours}:${minutes}`;
   };
-  
-  // Обрабатываем изменение инпута
+
   const handleChange = (e) => {
     try {
-      // Если поле пустое, возвращаем null
       if (!e.target.value) {
         onChange(null);
         return;
       }
-      
-      // В противном случае пытаемся преобразовать введенную дату в объект Date
       const newDate = new Date(e.target.value);
       if (!isNaN(newDate.getTime())) {
         onChange(newDate.toISOString());
       }
     } catch (error) {
-      console.error('Ошибка при парсинге даты:', error);
+      console.error('ОшибкаTeamApplicationForm.jsx при парсинге даты:', error);
     }
   };
-  
-  // Преобразуем дату в формат для ввода datetime-local
+
   const toDateTimeFormat = (date) => {
     if (!date) return '';
     return new Date(date.getTime() - (date.getTimezoneOffset() * 60000))
       .toISOString()
       .slice(0, 16);
   };
-  
+
   return (
     <div className="relative">
       <input
@@ -56,7 +49,6 @@ const CustomDateTimeInput = ({ value, onChange, placeholder, required = false })
         placeholder={placeholder}
         required={required}
       />
-      {/* Стилизованный индикатор календаря */}
       <div className="absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none">
         <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -66,7 +58,6 @@ const CustomDateTimeInput = ({ value, onChange, placeholder, required = false })
   );
 };
 
-// Основной компонент редактирования соревнования
 const CompetitionEdit = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -76,8 +67,7 @@ const CompetitionEdit = () => {
   const [regions, setRegions] = useState([]);
   const [error, setError] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  
-  // Состояние формы
+
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -90,53 +80,49 @@ const CompetitionEdit = () => {
     end_date: '',
     max_participants_or_teams: '',
     status: '',
-    allow_individual: true
+    participation_type: 'смешанное'
   });
-  
-  // Получение текущего пользователя
+
   useEffect(() => {
     const fetchUser = async () => {
       const { data } = await supabase.auth.getUser();
       setUser(data?.user || null);
     };
-    
+
     fetchUser();
   }, []);
-  
-  // Загрузка данных соревнования и справочников
+
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        
-        // Загрузка справочных данных
+        console.log('Загрузка данных для редактирования соревнования:', { competitionId: id });
+
         const [disciplinesResponse, regionsResponse] = await Promise.all([
           supabase.from('disciplines').select('id, name'),
           supabase.from('regions').select('id, name')
         ]);
-        
+
         if (disciplinesResponse.error) throw disciplinesResponse.error;
         if (regionsResponse.error) throw regionsResponse.error;
-        
+
         setDisciplines(disciplinesResponse.data || []);
         setRegions(regionsResponse.data || []);
-        
-        // Загрузка данных соревнования
+
         const { data: competitionData, error: competitionError } = await supabase
           .from('competitions')
           .select('*')
           .eq('id', id)
           .single();
-          
+
         if (competitionError) throw competitionError;
-        
-        // Проверка прав доступа (только организатор может редактировать)
+
         if (competitionData.organizer_user_id !== user?.id) {
+          console.warn('Попытка редактирования чужого соревнования:', { userId: user?.id, organizerId: competitionData.organizer_user_id });
           navigate(`/competitions/${id}`);
           return;
         }
-        
-        // Заполнение формы данными
+
         setFormData({
           name: competitionData.name || '',
           description: competitionData.description || '',
@@ -149,9 +135,8 @@ const CompetitionEdit = () => {
           end_date: competitionData.end_date || '',
           max_participants_or_teams: competitionData.max_participants_or_teams || '',
           status: competitionData.status || '',
-          allow_individual: competitionData.allow_individual !== undefined ? competitionData.allow_individual : true
+          participation_type: competitionData.participation_type || 'смешанное'
         });
-        
       } catch (error) {
         console.error('Ошибка при загрузке данных:', error.message);
         setError('Не удалось загрузить данные соревнования. Попробуйте позже.');
@@ -159,22 +144,20 @@ const CompetitionEdit = () => {
         setLoading(false);
       }
     };
-    
+
     if (id && user) {
       fetchData();
     }
   }, [id, user, navigate]);
-  
-  // Обработчик изменения полей формы
+
   const handleChange = (e) => {
     const { name, value } = e.target;
-    
-    // Особая обработка для поля type
+
     if (name === 'type' && value !== 'региональное') {
       setFormData({
         ...formData,
         [name]: value,
-        region_id: null // Сбрасываем регион для открытых и федеральных соревнований
+        region_id: null
       });
     } else {
       setFormData({
@@ -184,41 +167,37 @@ const CompetitionEdit = () => {
     }
   };
 
-  // Обработчик изменения дат
   const handleDateChange = (value, field) => {
     setFormData({
       ...formData,
       [field]: value
     });
   };
-  
-  // Обработчик отправки формы
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    
+
     try {
-      // Проверка обязательных полей
+      console.log('Попытка обновления соревнования:', formData);
+
       const requiredFields = [
-        'name', 'discipline_id', 'type', 
+        'name', 'discipline_id', 'type',
         'registration_start_date', 'registration_end_date',
         'start_date', 'end_date'
       ];
-      
-      // Если тип "региональное", то регион обязателен
+
       if (formData.type === 'региональное' && !formData.region_id) {
         throw new Error('Необходимо выбрать регион для регионального соревнования');
       }
-      
-      // Проверка всех обязательных полей
+
       for (const field of requiredFields) {
         if (!formData[field]) {
           throw new Error(`Поле "${field}" обязательно для заполнения`);
         }
       }
-      
-      // Отправка данных в базу
+
       const { error: updateError } = await supabase
         .from('competitions')
         .update({
@@ -234,19 +213,18 @@ const CompetitionEdit = () => {
           max_participants_or_teams: formData.max_participants_or_teams || null,
           status: formData.status,
           updated_at: new Date().toISOString(),
-          allow_individual: formData.allow_individual
+          participation_type: formData.participation_type
         })
         .eq('id', id);
-        
+
       if (updateError) {
         console.error('Ошибка при обновлении соревнования:', updateError);
         throw new Error(`Не удалось обновить соревнование: ${updateError.message}`);
       }
-      
-      // Перенаправление на страницу соревнования
+
+      console.log('Соревнование успешно обновлено');
       alert('Соревнование успешно обновлено!');
       navigate(`/competitions/${id}`);
-      
     } catch (error) {
       console.error('Ошибка при обновлении соревнования:', error.message);
       setError(error.message);
@@ -254,54 +232,50 @@ const CompetitionEdit = () => {
       setLoading(false);
     }
   };
-  
-  // Функция удаления соревнования
+
   const handleDelete = async () => {
     if (!window.confirm('Вы действительно хотите удалить это соревнование? Это действие нельзя отменить.')) {
       return;
     }
-    
+
     try {
       setLoading(true);
-      
-      // Проверяем наличие заявок на соревнование
+      console.log('Попытка удаления соревнования:', { competitionId: id });
+
       const { data: applications, error: applicationsError } = await supabase
         .from('applications')
         .select('id, status')
         .eq('competition_id', id);
-        
+
       if (applicationsError) throw applicationsError;
-      
-      // Проверяем наличие активных заявок
-      const activeApplications = applications?.filter(app => 
+
+      const activeApplications = applications?.filter(app =>
         app.status !== 'отклонена' && app.status !== 'отменена'
       );
-      
+
       if (activeApplications?.length > 0) {
         throw new Error(`У соревнования есть ${activeApplications.length} активных заявок. Сначала нужно отклонить или отменить все заявки.`);
       }
-      
-      // Удаляем все заявки, связанные с соревнованием
+
       if (applications?.length > 0) {
         const { error: deleteApplicationsError } = await supabase
           .from('applications')
           .delete()
           .eq('competition_id', id);
-          
+
         if (deleteApplicationsError) throw deleteApplicationsError;
       }
-      
-      // Удаляем соревнование
+
       const { error: deleteError } = await supabase
         .from('competitions')
         .delete()
         .eq('id', id);
-        
+
       if (deleteError) throw deleteError;
-      
+
+      console.log('Соревнование успешно удалено');
       alert('Соревнование успешно удалено!');
       navigate('/competitions');
-      
     } catch (error) {
       console.error('Ошибка при удалении соревнования:', error.message);
       setError(error.message);
@@ -309,42 +283,38 @@ const CompetitionEdit = () => {
       setLoading(false);
     }
   };
-  
-  // Валидация дат
+
   const validateDates = () => {
     const regStart = new Date(formData.registration_start_date);
     const regEnd = new Date(formData.registration_end_date);
     const compStart = new Date(formData.start_date);
     const compEnd = new Date(formData.end_date);
-    
-    // Проверка наличия всех дат
-    if (!formData.registration_start_date || !formData.registration_end_date || 
+
+    if (!formData.registration_start_date || !formData.registration_end_date ||
         !formData.start_date || !formData.end_date) {
-      return null; // Не валидируем, если не все даты выбраны
+      return null;
     }
-    
-    // Проверка корректности дат
-    if (isNaN(regStart.getTime()) || isNaN(regEnd.getTime()) || 
+
+    if (isNaN(regStart.getTime()) || isNaN(regEnd.getTime()) ||
         isNaN(compStart.getTime()) || isNaN(compEnd.getTime())) {
       return 'Введены некорректные даты';
     }
-    
+
     if (regEnd <= regStart) {
       return 'Дата окончания регистрации должна быть позже даты начала регистрации';
     }
-    
+
     if (compStart <= regStart) {
       return 'Дата начала соревнования должна быть позже даты начала регистрации';
     }
-    
+
     if (compEnd <= compStart) {
       return 'Дата окончания соревнования должна быть позже даты начала соревнования';
     }
-    
+
     return null;
   };
-  
-  // Показ индикатора загрузки
+
   if (loading && !formData.name) {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
@@ -352,17 +322,13 @@ const CompetitionEdit = () => {
       </div>
     );
   }
-  
+
   return (
     <div className="min-h-screen bg-gray-900 text-white">
-      {/* Навигация */}
       <Navbar user={user} />
-      
-      {/* Основной контент */}
       <div className="container mx-auto px-4 py-6 sm:py-8">
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-6">
           <h1 className="text-xl sm:text-2xl font-bold mb-2 sm:mb-0">Редактирование соревнования</h1>
-          
           <Link
             to={`/competitions/${id}`}
             className="text-gray-300 hover:text-white mb-4 sm:mb-0"
@@ -370,14 +336,10 @@ const CompetitionEdit = () => {
             ← Вернуться к соревнованию
           </Link>
         </div>
-        
-        {/* Форма редактирования соревнования */}
         <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 sm:p-6">
           <form onSubmit={handleSubmit}>
-            {/* Основная информация */}
             <div className="mb-6">
               <h2 className="text-lg font-semibold mb-4">Основная информация</h2>
-              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-gray-300 mb-1">Название соревнования *</label>
@@ -391,7 +353,6 @@ const CompetitionEdit = () => {
                     required
                   />
                 </div>
-                
                 <div>
                   <label className="block text-gray-300 mb-1">Дисциплина *</label>
                   <select
@@ -410,7 +371,6 @@ const CompetitionEdit = () => {
                   </select>
                 </div>
               </div>
-              
               <div className="mt-4">
                 <label className="block text-gray-300 mb-1">Описание</label>
                 <textarea
@@ -423,11 +383,8 @@ const CompetitionEdit = () => {
                 ></textarea>
               </div>
             </div>
-            
-            {/* Тип соревнования */}
             <div className="mb-6">
               <h2 className="text-lg font-semibold mb-4">Тип соревнования</h2>
-              
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-gray-300 mb-1">Тип *</label>
@@ -444,7 +401,20 @@ const CompetitionEdit = () => {
                     <option value="федеральное">Федеральное</option>
                   </select>
                 </div>
-                
+                <div>
+                  <label className="block text-gray-300 mb-1">Формат участия *</label>
+                  <select
+                    name="participation_type"
+                    value={formData.participation_type}
+                    onChange={handleChange}
+                    className="w-full p-2 bg-gray-700 border border-gray-600 rounded focus:outline-none focus:border-blue-500"
+                    required
+                  >
+                    <option value="командное">Только командное участие</option>
+                    <option value="индивидуальное">Только индивидуальное участие</option>
+                    <option value="смешанное">Командное и индивидуальное участие</option>
+                  </select>
+                </div>
                 {formData.type === 'региональное' && (
                   <div>
                     <label className="block text-gray-300 mb-1">Регион *</label>
@@ -464,7 +434,6 @@ const CompetitionEdit = () => {
                     </select>
                   </div>
                 )}
-                
                 <div>
                   <label className="block text-gray-300 mb-1">Максимум участников/команд</label>
                   <input
@@ -479,28 +448,8 @@ const CompetitionEdit = () => {
                 </div>
               </div>
             </div>
-
-            <div className="col-span-1 md:col-span-2 mt-2">
-              <label className="inline-flex items-center">
-                <input
-                  type="checkbox"
-                  name="allow_individual"
-                  checked={formData.allow_individual}
-                  onChange={(e) => setFormData({
-                    ...formData,
-                    allow_individual: e.target.checked
-                  })}
-                  className="form-checkbox text-blue-500"
-                />
-                <span className="ml-2">Разрешить индивидуальное участие</span>
-              </label>
-            </div>
-
-            
-            {/* Даты */}
             <div className="mb-6">
               <h2 className="text-lg font-semibold mb-4">Даты</h2>
-              
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-gray-300 mb-1">Начало регистрации *</label>
@@ -511,7 +460,6 @@ const CompetitionEdit = () => {
                     required={true}
                   />
                 </div>
-                
                 <div>
                   <label className="block text-gray-300 mb-1">Конец регистрации *</label>
                   <CustomDateTimeInput
@@ -521,7 +469,6 @@ const CompetitionEdit = () => {
                     required={true}
                   />
                 </div>
-                
                 <div>
                   <label className="block text-gray-300 mb-1">Начало соревнования *</label>
                   <CustomDateTimeInput
@@ -531,7 +478,6 @@ const CompetitionEdit = () => {
                     required={true}
                   />
                 </div>
-                
                 <div>
                   <label className="block text-gray-300 mb-1">Конец соревнования *</label>
                   <CustomDateTimeInput
@@ -542,19 +488,14 @@ const CompetitionEdit = () => {
                   />
                 </div>
               </div>
-              
-              {/* Валидация дат */}
               {validateDates() && (
                 <div className="mt-2 p-2 bg-red-900 text-white text-sm rounded">
                   {validateDates()}
                 </div>
               )}
             </div>
-            
-            {/* Статус соревнования */}
             <div className="mb-6">
               <h2 className="text-lg font-semibold mb-4">Статус публикации</h2>
-              
               <div className="flex flex-col sm:flex-row items-start sm:items-center sm:space-x-4">
                 <label className="inline-flex items-center mb-2 sm:mb-0">
                   <input
@@ -567,7 +508,6 @@ const CompetitionEdit = () => {
                   />
                   <span className="ml-2">Черновик</span>
                 </label>
-                
                 <label className="inline-flex items-center">
                   <input
                     type="radio"
@@ -581,11 +521,8 @@ const CompetitionEdit = () => {
                 </label>
               </div>
             </div>
-            
-            {/* Кнопки действий */}
             <div className="flex flex-col sm:flex-row sm:justify-between space-y-3 sm:space-y-0 sm:space-x-4 mt-8">
               <div>
-                {/* Кнопка удаления слева */}
                 <button
                   type="button"
                   onClick={() => setShowDeleteModal(true)}
@@ -595,7 +532,6 @@ const CompetitionEdit = () => {
                   Удалить соревнование
                 </button>
               </div>
-              
               <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
                 <Link
                   to={`/competitions/${id}`}
@@ -603,7 +539,6 @@ const CompetitionEdit = () => {
                 >
                   Отмена
                 </Link>
-                
                 <button
                   type="submit"
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition"
@@ -613,8 +548,6 @@ const CompetitionEdit = () => {
                 </button>
               </div>
             </div>
-
-            {/* Показ ошибок */}
             {error && (
               <div className="mt-4 p-3 bg-red-900 text-white rounded">
                 <p className="font-semibold">Ошибка:</p>
@@ -622,8 +555,6 @@ const CompetitionEdit = () => {
               </div>
             )}
           </form>
-          
-          {/* Модальное окно подтверждения удаления */}
           {showDeleteModal && (
             <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
               <div className="bg-gray-800 rounded-lg max-w-md w-full p-6 mx-4">
@@ -631,7 +562,6 @@ const CompetitionEdit = () => {
                 <p className="mb-6">
                   Вы действительно хотите удалить соревнование "{formData.name}"? Это действие нельзя отменить.
                 </p>
-                
                 <div className="flex justify-end space-x-3">
                   <button
                     onClick={() => setShowDeleteModal(false)}
@@ -639,7 +569,6 @@ const CompetitionEdit = () => {
                   >
                     Отмена
                   </button>
-                  
                   <button
                     onClick={() => {
                       setShowDeleteModal(false);

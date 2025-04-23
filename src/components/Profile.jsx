@@ -4,39 +4,35 @@ import { supabase } from '../supabaseClient';
 import { Link } from 'react-router-dom';
 import Navbar from './Navbar';
 
-// Основной компонент профиля
 const Profile = () => {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
+  const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [regions, setRegions] = useState([]);
   const [editing, setEditing] = useState(false);
-  
-  // Состояние для редактирования
+
   const [formData, setFormData] = useState({
     full_name: '',
-    bio: ''
+    bio: '',
   });
-  
-  // Получение текущего пользователя
+
   useEffect(() => {
     const fetchUser = async () => {
       const { data } = await supabase.auth.getUser();
       setUser(data?.user || null);
     };
-    
     fetchUser();
   }, []);
-  
-  // Загрузка профиля пользователя и справочных данных
+
   useEffect(() => {
     const fetchData = async () => {
       if (!user) return;
-      
+
       try {
         setLoading(true);
-        
+
         // Загрузка профиля
         const { data: profileData, error: profileError } = await supabase
           .from('users')
@@ -52,11 +48,9 @@ const Profile = () => {
           `)
           .eq('id', user.id)
           .single();
-          
-        // Если профиль не найден, создаем его
+
         if (profileError && profileError.code === 'PGRST116') {
           console.log('Профиль не найден, создаем новый');
-          
           const { data: newProfileData, error: insertError } = await supabase
             .from('users')
             .insert([
@@ -64,21 +58,21 @@ const Profile = () => {
                 id: user.id,
                 email: user.email,
                 full_name: user.user_metadata?.full_name || '',
-                created_at: new Date()
-              }
+                created_at: new Date(),
+              },
             ])
             .select()
             .single();
-            
+
           if (insertError) {
             console.error('Ошибка при создании профиля:', insertError);
             throw new Error('Не удалось создать профиль пользователя');
           }
-          
+
           setProfile(newProfileData);
           setFormData({
             full_name: newProfileData.full_name || '',
-            bio: newProfileData.bio || ''
+            bio: newProfileData.bio || '',
           });
         } else if (profileError) {
           throw profileError;
@@ -86,63 +80,84 @@ const Profile = () => {
           setProfile(profileData);
           setFormData({
             full_name: profileData.full_name || '',
-            bio: profileData.bio || ''
+            bio: profileData.bio || '',
           });
         }
-        
-        // Загрузка регионов для выпадающего списка
+
+        // Загрузка регионов
         const { data: regionsData, error: regionsError } = await supabase
           .from('regions')
           .select('id, name');
-          
+
         if (regionsError) throw regionsError;
         setRegions(regionsData || []);
-        
+
+        // Загрузка истории участия
+        const { data: historyData, error: historyError } = await supabase
+          .from('competition_results')
+          .select(`
+            id,
+            competition_id,
+            user_id,
+            team_id,
+            place,
+            score,
+            result_data,
+            recorded_at,
+            competitions(name, start_date, end_date, disciplines(name)),
+            teams(name)
+          `)
+          .or(`user_id.eq.${user.id},team_id.in.(
+            select team_id from team_members where user_id = '${user.id}'
+          )`);
+
+        if (historyError) {
+          console.error('Ошибка загрузки истории участия:', historyError);
+          throw new Error(`Ошибка загрузки истории участия: ${historyError.message}`);
+        }
+
+        setHistory(historyData || []);
       } catch (error) {
         console.error('Ошибка при загрузке данных:', error.message);
-        setError('Не удалось загрузить профиль. Попробуйте позже.');
+        setError('Не удалось загрузить профиль или историю участия. Попробуйте позже.');
       } finally {
         setLoading(false);
       }
     };
-    
+
     fetchData();
   }, [user]);
-  
-  // Обработчик изменения полей формы
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData({
       ...formData,
-      [name]: value
+      [name]: value,
     });
   };
-  
-  // Обработчик сохранения профиля
+
   const handleSave = async () => {
     try {
       setLoading(true);
-      
+
       const { error } = await supabase
         .from('users')
         .update({
           full_name: formData.full_name,
-          bio: formData.bio
+          bio: formData.bio,
         })
         .eq('id', user.id);
-        
+
       if (error) throw error;
-      
-      // Обновление профиля в состоянии
+
       setProfile({
         ...profile,
         full_name: formData.full_name,
-        bio: formData.bio
+        bio: formData.bio,
       });
-      
+
       setEditing(false);
       alert('Профиль успешно обновлен!');
-      
     } catch (error) {
       console.error('Ошибка при обновлении профиля:', error.message);
       setError('Не удалось обновить профиль. Попробуйте позже.');
@@ -150,8 +165,7 @@ const Profile = () => {
       setLoading(false);
     }
   };
-  
-  // Показ индикатора загрузки
+
   if (!user || loading) {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
@@ -159,17 +173,13 @@ const Profile = () => {
       </div>
     );
   }
-  
+
   return (
     <div className="min-h-screen bg-gray-900 text-white">
-      {/* Навигация */}
       <Navbar user={user} />
-      
-      {/* Основной контент */}
       <div className="container mx-auto px-4 py-6 sm:py-8">
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 sm:mb-8">
           <h1 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-0">Профиль пользователя</h1>
-          
           {!editing && (
             <button
               onClick={() => setEditing(true)}
@@ -179,17 +189,15 @@ const Profile = () => {
             </button>
           )}
         </div>
-        
+
         {error && (
           <div className="mb-6 p-3 bg-red-900 text-white rounded">
             <p>{error}</p>
           </div>
         )}
-        
-        {/* Профиль или форма редактирования */}
+
         <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 sm:p-6">
           {editing ? (
-            // Форма редактирования
             <div>
               <div className="mb-4">
                 <label className="block text-gray-300 mb-1">Полное имя</label>
@@ -202,7 +210,6 @@ const Profile = () => {
                   placeholder="Введите ваше полное имя"
                 />
               </div>
-              
               <div className="mb-6">
                 <label className="block text-gray-300 mb-1">О себе</label>
                 <textarea
@@ -214,7 +221,6 @@ const Profile = () => {
                   placeholder="Расскажите о себе и своем опыте"
                 ></textarea>
               </div>
-              
               <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
                 <button
                   onClick={() => setEditing(false)}
@@ -232,49 +238,46 @@ const Profile = () => {
               </div>
             </div>
           ) : (
-            // Просмотр профиля
             <div>
               <div className="mb-6">
                 <h2 className="text-lg font-semibold mb-4">Личная информация</h2>
-                
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <div className="mb-4">
                       <span className="block text-gray-400 text-sm">Полное имя</span>
                       <span className="text-lg">{profile?.full_name || 'Не указано'}</span>
                     </div>
-                    
                     <div className="mb-4">
                       <span className="block text-gray-400 text-sm">Email</span>
                       <span className="text-lg">{profile?.email}</span>
                     </div>
-                    
                     <div className="mb-4">
                       <span className="block text-gray-400 text-sm">Роль</span>
                       <span className="text-lg">
-                        {profile?.role === 'athlete' ? 'Спортсмен' : 
-                         profile?.role === 'regional_rep' ? 'Региональный представитель' : 
-                         'Администратор ФСП'}
+                        {profile?.role === 'athlete'
+                          ? 'Спортсмен'
+                          : profile?.role === 'regional_rep'
+                          ? 'Региональный представитель'
+                          : 'Администратор ФСП'}
                       </span>
                     </div>
                   </div>
-                  
                   <div>
                     <div className="mb-4">
                       <span className="block text-gray-400 text-sm">Регион</span>
                       <span className="text-lg">{profile?.regions?.name || 'Не указан'}</span>
                     </div>
-                    
                     <div className="mb-4">
                       <span className="block text-gray-400 text-sm">Дата регистрации</span>
                       <span className="text-lg">
-                        {profile?.created_at ? new Date(profile.created_at).toLocaleDateString('ru-RU') : 'Не указана'}
+                        {profile?.created_at
+                          ? new Date(profile.created_at).toLocaleDateString('ru-RU')
+                          : 'Не указана'}
                       </span>
                     </div>
                   </div>
                 </div>
               </div>
-              
               <div className="mb-6">
                 <h2 className="text-lg font-semibold mb-2">О себе</h2>
                 <p className="text-gray-300 whitespace-pre-line">
@@ -284,16 +287,57 @@ const Profile = () => {
             </div>
           )}
         </div>
-        
-        {/* Временно: Заглушка для истории участия */}
+
+        {/* История участия */}
         <div className="mt-8">
           <h2 className="text-xl font-semibold mb-4">История участия</h2>
-          
-          <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
-            <p className="text-gray-400 text-center py-4">
-              В разработке: Здесь будет отображаться ваша история участия в соревнованиях
-            </p>
-          </div>
+          {history.length === 0 ? (
+            <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+              <p className="text-gray-400 text-center py-4">
+                У вас пока нет результатов участия в соревнованиях.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {history.map(result => (
+                <div
+                  key={result.id}
+                  className="bg-gray-800 border border-gray-700 rounded-lg p-5"
+                >
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start">
+                    <div>
+                      <h3 className="text-lg font-semibold">
+                        {result.competitions?.name}
+                      </h3>
+                      <p className="text-sm text-gray-400">
+                        Дисциплина: {result.competitions?.disciplines?.name}
+                      </p>
+                      <p className="text-sm text-gray-400">
+                        Даты: {new Date(result.competitions?.start_date).toLocaleDateString('ru-RU')} -{' '}
+                        {new Date(result.competitions?.end_date).toLocaleDateString('ru-RU')}
+                      </p>
+                      {result.team_id && (
+                        <p className="text-sm text-gray-400">
+                          Команда: {result.teams?.name}
+                        </p>
+                      )}
+                      <p className="text-sm text-gray-400">
+                        Место: {result.place || 'Не указано'}
+                      </p>
+                      <p className="text-sm text-gray-400">
+                        Баллы: {result.score || 'Не указано'}
+                      </p>
+                      {result.result_data?.details && (
+                        <p className="text-sm text-gray-400">
+                          Дополнительно: {result.result_data.details}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

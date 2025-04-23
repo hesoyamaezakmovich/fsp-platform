@@ -10,13 +10,12 @@ const IndividualApplicationForm = ({ competitionId, user, onSuccess, onCancel })
   const [userDetails, setUserDetails] = useState(null);
   const [competition, setCompetition] = useState(null);
 
-  // Загрузка данных пользователя и соревнования
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        
-        // Загружаем данные пользователя
+        console.log('Загрузка данных для индивидуальной заявки:', { competitionId, userId: user.id });
+
         const { data: userData, error: userError } = await supabase
           .from('users')
           .select(`
@@ -29,20 +28,18 @@ const IndividualApplicationForm = ({ competitionId, user, onSuccess, onCancel })
           `)
           .eq('id', user.id)
           .single();
-          
+
         if (userError) throw userError;
         setUserDetails(userData);
-        
-        // Загружаем данные соревнования
+
         const { data: competitionData, error: compError } = await supabase
           .from('competitions')
-          .select('id, type, region_id, regions(id, name)')
+          .select('id, type, region_id, regions(id, name), participation_type')
           .eq('id', competitionId)
           .single();
-        
+
         if (compError) throw compError;
         setCompetition(competitionData);
-        
       } catch (err) {
         console.error('Ошибка при загрузке данных:', err.message);
         setError('Не удалось загрузить необходимые данные. Попробуйте позже.');
@@ -50,57 +47,70 @@ const IndividualApplicationForm = ({ competitionId, user, onSuccess, onCancel })
         setLoading(false);
       }
     };
-    
+
     if (user && competitionId) {
       fetchData();
     }
   }, [user, competitionId]);
 
-  // Проверка возможности подачи заявки
   const canApply = () => {
     if (!competition || !userDetails) return false;
-    
-    // Для регионального соревнования проверяем регион пользователя
+
+    if (competition.participation_type === 'командное') {
+      console.log('Индивидуальная заявка заблокирована: соревнование только командное');
+      return false;
+    }
+
     if (competition.type === 'региональное') {
-      return canApplyToRegionalCompetition(
-        userDetails.region_id, 
+      const canApplyRegional = canApplyToRegionalCompetition(
+        userDetails.region_id,
         competition.region_id,
         userDetails.role
       );
+      console.log('Проверка для регионального соревнования:', {
+        canApply: canApplyRegional,
+        userRegion: userDetails.region_id,
+        competitionRegion: competition.region_id
+      });
+      return canApplyRegional;
     }
-    
-    // Для открытого соревнования - все могут подавать
+
     return true;
   };
 
-  // Отправка заявки
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+    console.log('Попытка подачи индивидуальной заявки:', { competitionId, userId: user.id });
+
     if (!canApply()) {
-      setError('Вы не можете подать заявку на это соревнование. Проверьте регион.');
+      console.error('Подача заявки заблокирована:', { competition, userDetails });
+      setError('Вы не можете подать заявку на это соревнование. Проверьте регион или формат участия.');
       return;
     }
-    
+
     try {
       setLoading(true);
       setError(null);
-      
-      // Проверка на существующие заявки
+
+      console.log('Проверка существующих заявок...');
       const { data: existingApplication, error: checkError } = await supabase
         .from('applications')
         .select('id')
         .eq('competition_id', competitionId)
         .eq('applicant_user_id', user.id)
         .maybeSingle();
-      
-      if (checkError && checkError.code !== 'PGRST116') throw checkError;
-      
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.error('Ошибка проверки заявок:', checkError);
+        throw checkError;
+      }
+
       if (existingApplication) {
+        console.warn('Заявка уже существует:', existingApplication);
         throw new Error('Вы уже подали заявку на это соревнование.');
       }
-      
-      // Создание новой заявки
+
+      console.log('Отправка новой заявки...');
       const { error: insertError } = await supabase
         .from('applications')
         .insert([
@@ -115,12 +125,15 @@ const IndividualApplicationForm = ({ competitionId, user, onSuccess, onCancel })
             additional_data: additionalInfo ? JSON.stringify({ notes: additionalInfo }) : null
           }
         ]);
-        
-      if (insertError) throw insertError;
-      
+
+      if (insertError) {
+        console.error('Ошибка вставки заявки:', insertError);
+        throw insertError;
+      }
+
+      console.log('Заявка успешно отправлена');
       alert('Ваша заявка успешно отправлена!');
       onSuccess();
-      
     } catch (err) {
       console.error('Ошибка при подаче заявки:', err.message);
       setError(err.message);
@@ -132,7 +145,6 @@ const IndividualApplicationForm = ({ competitionId, user, onSuccess, onCancel })
   return (
     <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
       <h2 className="text-lg font-semibold mb-4">Подача индивидуальной заявки</h2>
-      
       {loading && !userDetails ? (
         <div className="text-center py-4">
           <p className="text-gray-400">Загрузка...</p>
@@ -143,23 +155,18 @@ const IndividualApplicationForm = ({ competitionId, user, onSuccess, onCancel })
         </div>
       ) : (
         <form onSubmit={handleSubmit}>
-          {/* Информация о пользователе */}
           <div className="mb-4 p-4 bg-gray-700 rounded-md">
             <p className="font-medium text-white">{userDetails?.full_name || 'Неизвестно'}</p>
             <p className="text-sm text-gray-300 mt-1">Email: {userDetails?.email || 'Неизвестно'}</p>
             <p className="text-sm text-gray-300 mt-1">
               Регион: {userDetails?.regions?.name || 'Не указан'}
             </p>
-            
-            {/* Предупреждение для региональных соревнований */}
             {competition?.type === 'региональное' && userDetails?.region_id !== competition?.region_id && (
               <div className="mt-3 p-2 bg-red-900 text-red-100 text-sm rounded">
                 <p>Внимание! Вы не можете участвовать в данном региональном соревновании, так как ваш регион не соответствует региону соревнования.</p>
               </div>
             )}
           </div>
-          
-          {/* Дополнительная информация */}
           <div className="mb-4">
             <label className="block text-gray-300 mb-1">Дополнительная информация (необязательно)</label>
             <textarea
@@ -170,15 +177,11 @@ const IndividualApplicationForm = ({ competitionId, user, onSuccess, onCancel })
               rows="3"
             />
           </div>
-          
-          {/* Вывод ошибок */}
           {error && (
             <div className="mb-4 p-3 bg-red-900 text-white rounded">
               <p>{error}</p>
             </div>
           )}
-          
-          {/* Кнопки управления */}
           <div className="flex justify-end space-x-4">
             <button
               type="button"

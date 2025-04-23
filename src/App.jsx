@@ -76,6 +76,7 @@ const App = () => {
         <Route path="/login" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/competitions/:id/results" element={<CompetitionResultsForm />} />
         
         {/* Защищенные маршруты */}
         <Route path="/dashboard" element={
