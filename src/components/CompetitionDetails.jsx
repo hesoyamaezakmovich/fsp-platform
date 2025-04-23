@@ -1,4 +1,4 @@
-// src/components/CompetitionDetails.jsx (обновленный)
+// src/components/CompetitionDetails.jsx
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
@@ -6,10 +6,9 @@ import Navbar from './Navbar';
 import TeamApplicationForm from './TeamApplicationForm';
 import TeamsLookingForMembers from './TeamsLookingForMembers';
 import RegionalApplicationForm from './RegionalApplicationForm';
+import IndividualApplicationForm from './IndividualApplicationForm';
 import { canApplyToRegionalCompetition, canApplyToFederalAsRegionalRep } from '../utils/roleUtils';
  
-// Импортируем новый компонент
-
 const CompetitionDetails = () => {
   const { id } = useParams();
   const [competition, setCompetition] = useState(null);
@@ -19,7 +18,8 @@ const CompetitionDetails = () => {
   const [error, setError] = useState(null);
   const [userTeams, setUserTeams] = useState([]);
   const [showTeamApplicationModal, setShowTeamApplicationModal] = useState(false);
-  const [showRegionalApplicationModal, setShowRegionalApplicationModal] = useState(false); // Новое состояние
+  const [showIndividualApplicationModal, setShowIndividualApplicationModal] = useState(false);
+  const [showRegionalApplicationModal, setShowRegionalApplicationModal] = useState(false);
   const [applicationStatus, setApplicationStatus] = useState(null);
 
   // Получение пользователя и его данных
@@ -155,38 +155,24 @@ const CompetitionDetails = () => {
     }
   };
 
+  const handleIndividualApplicationSuccess = async () => {
+    setShowIndividualApplicationModal(false);
+    // Обновляем статус заявки
+    const { data: individualApplication } = await supabase
+      .from('applications')
+      .select('id, status')
+      .eq('competition_id', id)
+      .eq('applicant_user_id', user.id)
+      .maybeSingle();
+      
+    if (individualApplication) {
+      setApplicationStatus(individualApplication.status);
+    }
+  };
+
   const handleRegionalApplicationSuccess = () => {
     setShowRegionalApplicationModal(false);
     alert('Заявки от региона успешно поданы!');
-  };
-
-  // Проверка, может ли пользователь подать заявку
-  const canApply = () => {
-    if (!user || !competition || !userDetails) return false;
-    
-    const status = getCompetitionStatus();
-    
-    // Проверка, открыта ли регистрация
-    if (status !== 'открыта_регистрация') return false;
-    
-    // Если уже есть заявка, нельзя подать новую
-    if (applicationStatus) return false;
-    
-    // Для регионального соревнования проверяем регион пользователя
-    if (competition.type === 'региональное' && 
-        userDetails.region_id !== competition.region_id && 
-        userDetails.role !== 'fsp_admin') {
-      return false;
-    }
-    
-    // Для федерального соревнования проверяем роль пользователя
-    if (competition.type === 'федеральное' && 
-        userDetails.role !== 'regional_rep' && 
-        userDetails.role !== 'fsp_admin') {
-      return false;
-    }
-    
-    return true;
   };
 
   // Функция проверки возможности подачи региональных заявок:
@@ -334,6 +320,16 @@ const CompetitionDetails = () => {
                       Подать командную заявку
                     </button>
                   )}
+
+                  {/* Кнопка для подачи индивидуальной заявки */}
+                  {canApplyAsAthlete() && (
+                    <button
+                      onClick={() => setShowIndividualApplicationModal(true)}
+                      className="w-full md:w-auto px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md transition"
+                    >
+                      Подать индивидуальную заявку
+                    </button>
+                  )}
                 </div>
                 
                 {/* Сообщение, если пользователь не может подать заявку */}
@@ -440,7 +436,7 @@ const CompetitionDetails = () => {
               </div>
             </div>
             
-            {/* Заменяем текущий раздел на компонент TeamsLookingForMembers */}
+            {/* Команды, ищущие участников */}
             {user && (
               <TeamsLookingForMembers competitionId={id} currentUser={user} />
             )}
@@ -454,6 +450,20 @@ const CompetitionDetails = () => {
                     user={user}
                     onSuccess={handleTeamApplicationSuccess}
                     onCancel={() => setShowTeamApplicationModal(false)}
+                  />
+                </div>
+              </div>
+            )}
+            
+            {/* Модальное окно подачи индивидуальной заявки */}
+            {showIndividualApplicationModal && (
+              <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+                <div className="bg-gray-800 rounded-lg max-w-lg w-full p-6 mx-4">
+                  <IndividualApplicationForm
+                    competitionId={id}
+                    user={user}
+                    onSuccess={handleIndividualApplicationSuccess}
+                    onCancel={() => setShowIndividualApplicationModal(false)}
                   />
                 </div>
               </div>

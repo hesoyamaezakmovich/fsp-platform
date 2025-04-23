@@ -53,26 +53,22 @@ const ApplicationsManagement = () => {
         
         // Загрузка всех заявок на соревнование с дополнительной информацией
         const { data: applicationsData, error: applicationsError } = await supabase
-          .from('applications')
-          .select(`
-            id,
-            application_type,
-            applicant_user_id,
-            applicant_team_id,
-            status,
-            submitted_at,
-            submitted_by_user_id,
-            additional_data,
-            users!applicant_user_id(id, full_name, email, region_id, regions(name)),
-            teams!applicant_team_id(id, name, captain_user_id, users!captain_user_id(id, full_name, email, region_id, regions(name))),
-            users!submitted_by_user_id(id, full_name, email, role, region_id, regions(name))
-          `)
-          .eq('competition_id', id)
-          .order('submitted_at', { ascending: false });
-          
-        if (applicationsError) throw applicationsError;
-        
-        setApplications(applicationsData || []);
+        .from('applications')
+        .select(`
+          id,
+          application_type,
+          applicant_user_id,
+          applicant_team_id,
+          status,
+          submitted_at,
+          submitted_by_user_id,
+          additional_data,
+          users!applicant_user_id(id, full_name, email, region_id, regions(name)),
+          teams!applicant_team_id(id, name, captain_user_id, users!captain_user_id(id, full_name, email, region_id, regions(name))),
+          users!submitted_by_user_id(id, full_name, email, role, region_id, regions(name))
+        `)
+        .eq('competition_id', id)
+        .order('submitted_at', { ascending: false });
         
       } catch (error) {
         console.error('Ошибка при загрузке данных:', error.message);
@@ -255,17 +251,17 @@ const ApplicationsManagement = () => {
                               <p className="text-sm text-gray-400">
                                 Капитан: {app.teams?.users?.full_name || app.teams?.users?.email || 'Неизвестно'}
                               </p>
-                              
+    
                               {/* Информация о регионе капитана */}
                               {app.teams?.users?.regions && (
                                 <p className="text-sm text-gray-400">
                                   Регион: {app.teams?.users?.regions?.name || 'Не указан'}
                                 </p>
                               )}
-                              
+    
                               {/* Информация о подателе заявки, если это региональный представитель */}
                               {app.users?.submitted_by_user_id?.role === 'regional_rep' && 
-                               app.users?.submitted_by_user_id?.id !== app.teams?.captain_user_id && (
+                              app.users?.submitted_by_user_id?.id !== app.teams?.captain_user_id && (
                                 <div className="mt-2 p-2 bg-blue-900 bg-opacity-50 rounded-md">
                                   <p className="text-sm">
                                     <span className="font-semibold">Заявка подана региональным представителем:</span> {app.users?.submitted_by_user_id?.full_name || app.users?.submitted_by_user_id?.email}
@@ -288,14 +284,14 @@ const ApplicationsManagement = () => {
                                   Регион: {app.users?.regions?.name || 'Не указан'}
                                 </p>
                               )}
-                              
+    
                               {/* Информация, если заявка подана региональным представителем */}
                               {app.users?.submitted_by_user_id?.role === 'regional_rep' && 
-                               app.users?.submitted_by_user_id?.id !== app.applicant_user_id && (
-                                <div className="mt-2 p-2 bg-blue-900 bg-opacity-50 rounded-md">
-                                  <p className="text-sm">
-                                    <span className="font-semibold">Заявка подана региональным представителем:</span> {app.users?.submitted_by_user_id?.full_name || app.users?.submitted_by_user_id?.email}
-                                  </p>
+                                app.users?.submitted_by_user_id?.id !== app.applicant_user_id && (
+                                  <div className="mt-2 p-2 bg-blue-900 bg-opacity-50 rounded-md">
+                                    <p className="text-sm">
+                                      <span className="font-semibold">Заявка подана региональным представителем:</span> {app.users?.submitted_by_user_id?.full_name || app.users?.submitted_by_user_id?.email}
+                                    </p>
                                   <p className="text-sm text-gray-400">
                                     Регион: {app.users?.submitted_by_user_id?.regions?.name || 'Не указан'}
                                   </p>

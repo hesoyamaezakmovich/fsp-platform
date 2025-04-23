@@ -89,6 +89,7 @@ const CompetitionCreate = () => {
     type: 'открытое',
     region_id: null,
     registration_start_date: '',
+    allow_individual: true,
     registration_end_date: '',
     start_date: '',
     end_date: '',
@@ -319,6 +320,7 @@ const handleChange = (e) => {
             max_participants_or_teams: formData.max_participants_or_teams || null,
             organizer_user_id: user.id,
             status: formData.status,
+            allow_individual: formData.allow_individual,
             created_at: new Date().toISOString()
           }
         ])
@@ -554,6 +556,23 @@ const handleChange = (e) => {
                     required={true}
                   />
                 </div>
+              </div>
+
+              {/* Переключатель индивидуального участия */}
+              <div className="col-span-1 md:col-span-2">
+                <label className="inline-flex items-center">
+                  <input
+                    type="checkbox"
+                    name="allow_individual"
+                    checked={formData.allow_individual}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      allow_individual: e.target.checked
+                    })}
+                    className="form-checkbox text-blue-500"
+                  />
+                  <span className="ml-2">Разрешить индивидуальное участие</span>
+                </label>
               </div>
               
               {/* Валидация дат */}
