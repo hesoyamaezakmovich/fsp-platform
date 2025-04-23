@@ -59,7 +59,7 @@ const CompetitionDetails = () => {
       try {
         setLoading(true);
         console.log('Загрузка данных соревнования:', { competitionId: id });
-
+  
         // Получение данных соревнования
         const { data: competitionData, error: competitionError } = await supabase
           .from('competitions')
@@ -70,81 +70,60 @@ const CompetitionDetails = () => {
           `)
           .eq('id', id)
           .single();
-
+  
         if (competitionError) throw competitionError;
-
+  
         if (competitionData) {
           const { data: organizerData, error: organizerError } = await supabase
             .from('users')
             .select('full_name, email')
             .eq('id', competitionData.organizer_user_id)
             .single();
-
+  
           if (!organizerError) {
             competitionData.organizer = organizerData;
           }
-        }
-
-        setCompetition(competitionData);
-
-        // Получение результатов соревнования
-        const { data: resultsData, error: resultsError } = await supabase
-          .from('competition_results')
-          .select(`
-            id,
-            user_id,
-            team_id,
-            place,
-            score,
-            result_data,
-            recorded_at,
-            users!competition_results_user_id_fkey(full_name, email),
-            teams(name)
-          `)
-          .eq('competition_id', id)
-          .order('place', { ascending: true });
-
-        if (resultsError) {
-          console.error('Ошибка загрузки результатов:', resultsError);
-          throw new Error(`Ошибка загрузки результатов: ${resultsError.message}`);
-        }
-
-        setResults(resultsData || []);
-
-        if (user) {
-          const { data: individualApplication } = await supabase
-            .from('applications')
-            .select('id, status')
-            .eq('competition_id', id)
-            .eq('applicant_user_id', user.id)
-            .maybeSingle();
-
-          const { data: teamsData, error: teamsError } = await supabase
-            .from('teams')
-            .select('id, name')
-            .eq('captain_user_id', user.id);
-
-          if (teamsError) throw teamsError;
-          setUserTeams(teamsData || []);
-
-          if (teamsData && teamsData.length > 0) {
-            const teamIds = teamsData.map(team => team.id);
-            const { data: teamApplications } = await supabase
-              .from('applications')
-              .select('id, applicant_team_id, status')
-              .eq('competition_id', id)
-              .in('applicant_team_id', teamIds)
-              .maybeSingle();
-
-            if (teamApplications) {
-              setApplicationStatus(teamApplications.status);
-            } else if (individualApplication) {
-              setApplicationStatus(individualApplication.status);
-            }
-          } else if (individualApplication) {
-            setApplicationStatus(individualApplication.status);
+  
+          // Вычисляем текущий статус на основе дат
+          const now = new Date();
+          const regStart = new Date(competitionData.registration_start_date);
+          const regEnd = new Date(competitionData.registration_end_date);
+          const compStart = new Date(competitionData.start_date);
+          const compEnd = new Date(competitionData.end_date);
+  
+          let computedStatus = '';
+          if (isNaN(regStart) || isNaN(regEnd) || isNaN(compStart) || isNaN(compEnd)) {
+            computedStatus = 'ошибка';
+          } else if (now < regStart) {
+            computedStatus = 'скоро_открытие';
+          } else if (now >= regStart && now <= regEnd) {
+            computedStatus = 'открыта_регистрация';
+          } else if (now > regEnd && now < compStart) {
+            computedStatus = 'регистрация_закрыта';
+          } else if (now >= compStart && now <= compEnd) {
+            computedStatus = 'идет_соревнование';
+          } else {
+            computedStatus = 'завершено';
           }
+  
+          // Если статус в базе данных отличается от вычисленного, обновляем его
+          if (competitionData.status !== computedStatus && computedStatus !== 'ошибка') {
+            const { error: updateError } = await supabase
+              .from('competitions')
+              .update({ status: computedStatus })
+              .eq('id', id);
+  
+            if (updateError) {
+              console.error('Ошибка при обновлении статуса соревнования:', updateError);
+            } else {
+              competitionData.status = computedStatus;
+            }
+          }
+  
+          setCompetition(competitionData);
         }
+  
+        // ... (остальной код: получение результатов, заявок и т.д.)
       } catch (error) {
         console.error('Ошибка при загрузке соревнования:', error.message);
         setError('Не удалось загрузить данные соревнования. Попробуйте позже.');
@@ -152,7 +131,7 @@ const CompetitionDetails = () => {
         setLoading(false);
       }
     };
-
+  
     if (id) {
       fetchCompetition();
     }

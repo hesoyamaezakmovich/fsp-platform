@@ -17,6 +17,7 @@ import Profile from './components/Profile';
 import ForgotPassword from './components/ForgotPassword';
 import ResetPassword from './components/ResetPassword';
 import CompetitionEdit from './components/CompetitionEdit';
+import CompetitionResultsForm from './components/CompetitionResultsForm';
 
 // Компонент для защищенных маршрутов
 const PrivateRoute = ({ children }) => {
