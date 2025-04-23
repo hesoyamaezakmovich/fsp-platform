@@ -89,11 +89,11 @@ const CompetitionCreate = () => {
     type: 'открытое',
     region_id: null,
     registration_start_date: '',
-    allow_individual: true,
     registration_end_date: '',
     start_date: '',
     end_date: '',
     max_participants_or_teams: '',
+    allow_individual: true,
     status: 'черновик'
   });
   
@@ -512,6 +512,22 @@ const handleChange = (e) => {
               </div>
             </div>
             
+            <div className="col-span-1 md:col-span-2 mt-2">
+              <label className="inline-flex items-center">
+                <input
+                    type="checkbox"
+                    name="allow_individual"
+                    checked={formData.allow_individual}
+                    onChange={(e) => setFormData({
+                    ...formData,
+                    allow_individual: e.target.checked
+                  })}
+                  className="form-checkbox text-blue-500"
+                />
+                <span className="ml-2">Разрешить индивидуальное участие</span>
+              </label>
+            </div>
+            
             {/* Даты */}
             <div className="mb-6">
               <h2 className="text-lg font-semibold mb-4">Даты</h2>
@@ -558,23 +574,7 @@ const handleChange = (e) => {
                 </div>
               </div>
 
-              {/* Переключатель индивидуального участия */}
-              <div className="col-span-1 md:col-span-2">
-                <label className="inline-flex items-center">
-                  <input
-                    type="checkbox"
-                    name="allow_individual"
-                    checked={formData.allow_individual}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      allow_individual: e.target.checked
-                    })}
-                    className="form-checkbox text-blue-500"
-                  />
-                  <span className="ml-2">Разрешить индивидуальное участие</span>
-                </label>
-              </div>
-              
+             
               {/* Валидация дат */}
               {validateDates() && (
                 <div className="mt-2 p-2 bg-red-900 text-white text-sm rounded">

@@ -193,6 +193,10 @@ const CompetitionDetails = () => {
     const status = getCompetitionStatus();
     if (status !== 'открыта_регистрация' || applicationStatus) return false;
     
+    // Для индивидуальных заявок проверяем, разрешено ли индивидуальное участие
+    // По умолчанию считаем, что разрешено, если поле отсутствует
+    if (competition.allow_individual === false) return false;
+    
     // Для регионального соревнования проверяем регион спортсмена
     if (competition.type === 'региональное') {
       return canApplyToRegionalCompetition(
@@ -322,7 +326,7 @@ const CompetitionDetails = () => {
                   )}
 
                   {/* Кнопка для подачи индивидуальной заявки */}
-                  {canApplyAsAthlete() && (
+                  {canApplyAsAthlete() && competition.allow_individual !== false && (
                     <button
                       onClick={() => setShowIndividualApplicationModal(true)}
                       className="w-full md:w-auto px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md transition"
@@ -340,6 +344,14 @@ const CompetitionDetails = () => {
                   getCompetitionStatus() === 'открыта_регистрация' && (
                   <div className="mt-2 p-2 bg-red-900 text-white text-sm rounded-md">
                     Это региональное соревнование доступно только для участников из региона: {competition.regions?.name}
+                  </div>
+                )}
+
+                {getCompetitionStatus() === 'открыта_регистрация' && 
+                  competition.allow_individual === false && 
+                  !applicationStatus && (
+                  <div className="mt-2 p-2 bg-yellow-900 text-white text-sm rounded-md">
+                    Индивидуальное участие в этом соревновании не предусмотрено
                   </div>
                 )}
                 
@@ -386,7 +398,14 @@ const CompetitionDetails = () => {
                 
                 <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
                   <h2 className="text-xl font-semibold mb-4">Детали соревнования</h2>
-                  
+                    <div>
+                      <p className="text-gray-400 mb-1">Формат участия:</p>
+                      <p>
+                        {competition.allow_individual === false 
+                          ? 'Только командное участие' 
+                          : 'Командное и индивидуальное участие'}
+                     </p>
+                    </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <p className="text-gray-400 mb-1">Организатор:</p>

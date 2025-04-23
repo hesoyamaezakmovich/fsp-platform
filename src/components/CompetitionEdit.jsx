@@ -89,7 +89,8 @@ const CompetitionEdit = () => {
     start_date: '',
     end_date: '',
     max_participants_or_teams: '',
-    status: ''
+    status: '',
+    allow_individual: true
   });
   
   // Получение текущего пользователя
@@ -147,7 +148,8 @@ const CompetitionEdit = () => {
           start_date: competitionData.start_date || '',
           end_date: competitionData.end_date || '',
           max_participants_or_teams: competitionData.max_participants_or_teams || '',
-          status: competitionData.status || ''
+          status: competitionData.status || '',
+          allow_individual: competitionData.allow_individual !== undefined ? competitionData.allow_individual : true
         });
         
       } catch (error) {
@@ -231,7 +233,8 @@ const CompetitionEdit = () => {
           end_date: formData.end_date,
           max_participants_or_teams: formData.max_participants_or_teams || null,
           status: formData.status,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
+          allow_individual: formData.allow_individual
         })
         .eq('id', id);
         
@@ -476,6 +479,23 @@ const CompetitionEdit = () => {
                 </div>
               </div>
             </div>
+
+            <div className="col-span-1 md:col-span-2 mt-2">
+              <label className="inline-flex items-center">
+                <input
+                  type="checkbox"
+                  name="allow_individual"
+                  checked={formData.allow_individual}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    allow_individual: e.target.checked
+                  })}
+                  className="form-checkbox text-blue-500"
+                />
+                <span className="ml-2">Разрешить индивидуальное участие</span>
+              </label>
+            </div>
+
             
             {/* Даты */}
             <div className="mb-6">
