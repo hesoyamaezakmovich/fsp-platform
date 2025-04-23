@@ -167,8 +167,9 @@ const CompetitionResultsForm = () => {
       console.log('Данные для вставки:', resultsToInsert);
 
       const { error: insertError, data: insertedData } = await supabase
-        .from('competition_results')
-        .insert(resultsToInsert);
+      .from('competition_results')
+      .insert(resultsToInsert)
+      .select();
 
       console.log('Результат вставки:', { insertedData, insertError });
 
