@@ -1,30 +1,62 @@
-// src/components/CompetitionDetails.jsx
+// src/components/CompetitionDetails.jsx (обновленный)
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import Navbar from './Navbar';
 import TeamApplicationForm from './TeamApplicationForm';
-import TeamsLookingForMembers from './TeamsLookingForMembers'; 
+import TeamsLookingForMembers from './TeamsLookingForMembers';
+import RegionalApplicationForm from './RegionalApplicationForm';
+import { canApplyToRegionalCompetition, canApplyToFederalAsRegionalRep } from '../utils/roleUtils';
+ 
+// Импортируем новый компонент
 
 const CompetitionDetails = () => {
   const { id } = useParams();
   const [competition, setCompetition] = useState(null);
   const [user, setUser] = useState(null);
+  const [userDetails, setUserDetails] = useState(null); // Полные данные пользователя
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [userTeams, setUserTeams] = useState([]);
   const [showTeamApplicationModal, setShowTeamApplicationModal] = useState(false);
+  const [showRegionalApplicationModal, setShowRegionalApplicationModal] = useState(false); // Новое состояние
   const [applicationStatus, setApplicationStatus] = useState(null);
 
+  // Получение пользователя и его данных
   useEffect(() => {
     const fetchUser = async () => {
-      const { data } = await supabase.auth.getUser();
-      setUser(data?.user || null);
+      try {
+        const { data } = await supabase.auth.getUser();
+        if (data?.user) {
+          setUser(data.user);
+          
+          // Получаем дополнительные данные о пользователе (роль, регион)
+          const { data: userData, error: userError } = await supabase
+            .from('users')
+            .select(`
+              id, 
+              full_name, 
+              email, 
+              role, 
+              region_id,
+              regions(id, name)
+            `)
+            .eq('id', data.user.id)
+            .single();
+            
+          if (!userError) {
+            setUserDetails(userData);
+          }
+        }
+      } catch (error) {
+        console.error('Ошибка при загрузке пользователя:', error.message);
+      }
     };
     
     fetchUser();
   }, []);
 
+  // Загрузка соревнования
   useEffect(() => {
     const fetchCompetition = async () => {
       try {
@@ -57,15 +89,8 @@ const CompetitionDetails = () => {
         
         setCompetition(competitionData);
         
-        // Отладка для проверки прав доступа
-        if (competitionData && user) {
-          console.log('Competition ID:', id);
-          console.log('Competition organizer_user_id:', competitionData.organizer_user_id);
-          console.log('Current user ID:', user.id);
-          console.log('Is organizer:', competitionData.organizer_user_id === user.id);
-        }
-        
         if (user) {
+          // Загрузка индивидуальных заявок
           const { data: individualApplication } = await supabase
             .from('applications')
             .select('id, status')
@@ -73,6 +98,7 @@ const CompetitionDetails = () => {
             .eq('applicant_user_id', user.id)
             .maybeSingle();
           
+          // Загрузка команд пользователя
           const { data: teamsData, error: teamsError } = await supabase
             .from('teams')
             .select('id, name')
@@ -81,6 +107,7 @@ const CompetitionDetails = () => {
           if (teamsError) throw teamsError;
           setUserTeams(teamsData || []);
           
+          // Проверка командных заявок
           if (teamsData && teamsData.length > 0) {
             const teamIds = teamsData.map(team => team.id);
             
@@ -113,6 +140,7 @@ const CompetitionDetails = () => {
     }
   }, [id, user]);
 
+  // Обработчики успешной подачи заявок
   const handleTeamApplicationSuccess = async () => {
     setShowTeamApplicationModal(false);
     const { data: teamApplications } = await supabase
@@ -125,6 +153,71 @@ const CompetitionDetails = () => {
     if (teamApplications) {
       setApplicationStatus(teamApplications.status);
     }
+  };
+
+  const handleRegionalApplicationSuccess = () => {
+    setShowRegionalApplicationModal(false);
+    alert('Заявки от региона успешно поданы!');
+  };
+
+  // Проверка, может ли пользователь подать заявку
+  const canApply = () => {
+    if (!user || !competition || !userDetails) return false;
+    
+    const status = getCompetitionStatus();
+    
+    // Проверка, открыта ли регистрация
+    if (status !== 'открыта_регистрация') return false;
+    
+    // Если уже есть заявка, нельзя подать новую
+    if (applicationStatus) return false;
+    
+    // Для регионального соревнования проверяем регион пользователя
+    if (competition.type === 'региональное' && 
+        userDetails.region_id !== competition.region_id && 
+        userDetails.role !== 'fsp_admin') {
+      return false;
+    }
+    
+    // Для федерального соревнования проверяем роль пользователя
+    if (competition.type === 'федеральное' && 
+        userDetails.role !== 'regional_rep' && 
+        userDetails.role !== 'fsp_admin') {
+      return false;
+    }
+    
+    return true;
+  };
+
+  // Функция проверки возможности подачи региональных заявок:
+  const canApplyAsRegionalRep = () => {
+    return (
+      userDetails && 
+      competition && 
+      competition.type === 'федеральное' && 
+      canApplyToFederalAsRegionalRep(userDetails.role) && 
+      getCompetitionStatus() === 'открыта_регистрация'
+    );
+  };
+
+  // Функция проверки для обычных заявок:
+  const canApplyAsAthlete = () => {
+    if (!userDetails || !competition) return false;
+    
+    const status = getCompetitionStatus();
+    if (status !== 'открыта_регистрация' || applicationStatus) return false;
+    
+    // Для регионального соревнования проверяем регион спортсмена
+    if (competition.type === 'региональное') {
+      return canApplyToRegionalCompetition(
+        userDetails.region_id, 
+        competition.region_id, 
+        userDetails.role
+      );
+    }
+    
+    // Для открытого соревнования - все могут подавать
+    return true;
   };
 
   if (loading && !competition) {
@@ -171,13 +264,6 @@ const CompetitionDetails = () => {
     }
   };
 
-  const canApply = () => {
-    if (!user || !competition) return false;
-    
-    const status = getCompetitionStatus();
-    return status === 'открыта_регистрация' && !applicationStatus;
-  };
-
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       <Navbar user={user} />
@@ -194,7 +280,10 @@ const CompetitionDetails = () => {
                     competition.type === 'региональное' ? 'bg-yellow-900 text-yellow-300' :
                     'bg-blue-900 text-blue-300'
                   }`}>
-                    {competition.type}
+                    {competition.type === 'открытое' ? 'Открытое' :
+                    competition.type === 'региональное' ? 'Региональное' :
+                    competition.type === 'федеральное' ? 'Федеральное' :
+                    competition.type}
                   </span>
                   
                   <span className="px-2 py-1 bg-purple-900 text-purple-300 rounded-full text-xs">
@@ -224,17 +313,42 @@ const CompetitionDetails = () => {
                   ← К списку соревнований
                 </Link>
 
-                {canApply() && (
-                  <button
-                    onClick={() => setShowTeamApplicationModal(true)}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition"
-                  >
-                    Подать заявку командой
-                  </button>
+                {/* Кнопки подачи заявок с разными проверками */}
+                <div className="mt-2 md:mt-0 space-y-2 md:space-y-0 md:flex md:space-x-2">
+                  {/* Кнопка для подачи региональной заявки (только для региональных представителей) */}
+                  {canApplyAsRegionalRep() && (
+                    <button
+                      onClick={() => setShowRegionalApplicationModal(true)}
+                      className="w-full md:w-auto px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition"
+                    >
+                      Подать заявку от региона
+                    </button>
+                  )}
+                  
+                  {/* Кнопка для подачи командной заявки */}
+                  {canApplyAsAthlete() && userTeams.length > 0 && (
+                    <button
+                      onClick={() => setShowTeamApplicationModal(true)}
+                      className="w-full md:w-auto px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md transition"
+                    >
+                      Подать командную заявку
+                    </button>
+                  )}
+                </div>
+                
+                {/* Сообщение, если пользователь не может подать заявку */}
+                {competition.type === 'региональное' && 
+                  userDetails && 
+                  userDetails.region_id !== competition.region_id && 
+                  userDetails.role !== 'fsp_admin' && 
+                  getCompetitionStatus() === 'открыта_регистрация' && (
+                  <div className="mt-2 p-2 bg-red-900 text-white text-sm rounded-md">
+                    Это региональное соревнование доступно только для участников из региона: {competition.regions?.name}
+                  </div>
                 )}
                 
                 {applicationStatus && (
-                  <div className="mt-2 md:mt-0 md:ml-2 inline-block px-3 py-1 rounded-md bg-gray-800 text-sm">
+                  <div className="mt-2 inline-block px-3 py-1 rounded-md bg-gray-800 text-sm">
                     Статус заявки: <span className="font-semibold">{applicationStatus}</span>
                   </div>
                 )}
@@ -331,6 +445,7 @@ const CompetitionDetails = () => {
               <TeamsLookingForMembers competitionId={id} currentUser={user} />
             )}
             
+            {/* Модальное окно подачи командной заявки */}
             {showTeamApplicationModal && (
               <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
                 <div className="bg-gray-800 rounded-lg max-w-lg w-full p-6 mx-4">
@@ -339,6 +454,20 @@ const CompetitionDetails = () => {
                     user={user}
                     onSuccess={handleTeamApplicationSuccess}
                     onCancel={() => setShowTeamApplicationModal(false)}
+                  />
+                </div>
+              </div>
+            )}
+            
+            {/* Модальное окно подачи региональной заявки */}
+            {showRegionalApplicationModal && (
+              <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+                <div className="bg-gray-800 rounded-lg max-w-2xl w-full p-6 mx-4">
+                  <RegionalApplicationForm
+                    competitionId={id}
+                    user={user}
+                    onSuccess={handleRegionalApplicationSuccess}
+                    onCancel={() => setShowRegionalApplicationModal(false)}
                   />
                 </div>
               </div>
