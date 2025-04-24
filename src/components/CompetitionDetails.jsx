@@ -46,17 +46,16 @@ const CompetitionDetails = () => {
             setUserDetails(userData);
           }
 
-          // Загружаем команды пользователя
           const { data: teamsData, error: teamsError } = await supabase
-            .from('team_members')
-            .select('team_id, teams(name)')
-            .eq('user_id', data.user.id);
+            .from('teams')
+            .select('id, name')
+            .eq('captain_user_id', data.user.id);
 
           if (teamsError) {
-            console.error('Ошибка при загрузке команд:', teamsError);
+            console.error('Ошибка при загрузке команд капитана:', teamsError);
           } else {
-            setUserTeams(teamsData.map(member => member.team_id) || []);
-            console.log('Команды пользователя:', teamsData);
+            const teams = teamsData.map(team => team.id) || [];
+            setUserTeams(teams);
           }
         }
       } catch (error) {
@@ -68,12 +67,34 @@ const CompetitionDetails = () => {
   }, []);
 
   useEffect(() => {
+    const fetchApplicationStatus = async () => {
+      if (!id || !userTeams || userTeams.length === 0) return;
+
+      try {
+        const { data: teamApplications, error } = await supabase
+          .from('applications')
+          .select('id, applicant_team_id, status')
+          .eq('competition_id', id)
+          .in('applicant_team_id', userTeams)
+          .maybeSingle();
+
+        if (error) {
+          console.error('Ошибка при загрузке статуса заявки:', error);
+        } else {
+          setApplicationStatus(teamApplications ? teamApplications.status : null);
+        }
+      } catch (error) {
+        console.error('Ошибка при загрузке статуса заявки:', error.message);
+      }
+    };
+
+    fetchApplicationStatus();
+  }, [id, userTeams]);
+
+  useEffect(() => {
     const fetchCompetition = async () => {
       try {
         setLoading(true);
-        console.log('Загрузка данных соревнования:', { competitionId: id });
-
-        // Получение данных соревнования
         const { data: competitionData, error: competitionError } = await supabase
           .from('competitions')
           .select(`
@@ -97,7 +118,6 @@ const CompetitionDetails = () => {
             competitionData.organizer = organizerData;
           }
 
-          // Вычисляем текущий статус на основе дат
           const now = new Date();
           const regStart = new Date(competitionData.registration_start_date);
           const regEnd = new Date(competitionData.registration_end_date);
@@ -119,7 +139,6 @@ const CompetitionDetails = () => {
             computedStatus = 'завершено';
           }
 
-          // Если статус в базе данных отличается от вычисленного, обновляем его
           if (competitionData.status !== computedStatus && computedStatus !== 'ошибка') {
             const { error: updateError } = await supabase
               .from('competitions')
@@ -135,7 +154,6 @@ const CompetitionDetails = () => {
 
           setCompetition(competitionData);
 
-          // Получение результатов соревнования
           const { data: resultsData, error: resultsError } = await supabase
             .from('competition_results')
             .select(`
@@ -177,7 +195,7 @@ const CompetitionDetails = () => {
       .from('applications')
       .select('id, applicant_team_id, status')
       .eq('competition_id', id)
-      .in('applicant_team_id', userTeams.map(team => team.id))
+      .in('applicant_team_id', userTeams)
       .maybeSingle();
 
     if (teamApplications) {
@@ -215,35 +233,28 @@ const CompetitionDetails = () => {
   };
 
   const canApplyAsAthlete = () => {
-    if (!userDetails || !competition) return false;
+    if (!userDetails || !competition) {
+      return false;
+    }
 
     const status = getCompetitionStatus();
     if (status !== 'открыта_регистрация' || applicationStatus) {
-      console.log('Подача заявки заблокирована:', { status, applicationStatus });
       return false;
     }
 
     if (competition.participation_type === 'командное' && !userTeams.length) {
-      console.log('Нет команд для командного соревнования');
       return false;
     }
     if (competition.participation_type === 'индивидуальное' && userTeams.length) {
-      console.log('Командная заявка для индивидуального соревнования недоступна');
       return false;
     }
 
     if (competition.type === 'региональное') {
-      const canApply = canApplyToRegionalCompetition(
+      return canApplyToRegionalCompetition(
         userDetails.region_id,
         competition.region_id,
         userDetails.role
       );
-      console.log('Проверка для регионального соревнования:', {
-        canApply,
-        userRegion: userDetails.region_id,
-        competitionRegion: competition.region_id,
-      });
-      return canApply;
     }
 
     return true;
@@ -280,14 +291,6 @@ const CompetitionDetails = () => {
     const compStart = new Date(competition.start_date);
     const compEnd = new Date(competition.end_date);
 
-    console.log('Даты соревнования:', {
-      now: now.toISOString(),
-      regStart: regStart.toISOString(),
-      regEnd: regEnd.toISOString(),
-      compStart: compStart.toISOString(),
-      compEnd: compEnd.toISOString(),
-    });
-
     if (isNaN(regStart) || isNaN(regEnd) || isNaN(compStart) || isNaN(compEnd)) {
       console.error('Некорректные даты в соревновании:', competition);
       return 'ошибка';
@@ -300,9 +303,7 @@ const CompetitionDetails = () => {
     return 'завершено';
   };
 
-  // Проверяем, разрешено ли индивидуальное участие
   const allowsIndividual = ['индивидуальное', 'командное_и_индивидуальное'].includes(competition?.participation_type);
-  // Проверяем, разрешено ли командное участие
   const allowsTeam = ['командное', 'командное_и_индивидуальное'].includes(competition?.participation_type);
 
   return (
@@ -379,6 +380,14 @@ const CompetitionDetails = () => {
                       Подать командную заявку
                     </button>
                   )}
+                  {allowsTeam && userTeams.length === 0 && getCompetitionStatus() === 'открыта_регистрация' && !applicationStatus && (
+                    <div className="mt-2 p-2 bg-yellow-900 text-white text-sm rounded-md">
+                      У вас нет команд для участия. Пожалуйста, создайте команду, чтобы подать заявку.{' '}
+                      <Link to="/teams/create" className="underline hover:text-gray-300">
+                        Создать команду
+                      </Link>
+                    </div>
+                  )}
                   {canApplyAsAthlete() && allowsIndividual && (
                     <button
                       onClick={() => setShowIndividualApplicationModal(true)}
@@ -398,13 +407,6 @@ const CompetitionDetails = () => {
                       {competition.regions?.name}
                     </div>
                   )}
-                {allowsIndividual ? null : (
-                  getCompetitionStatus() === 'открыта_регистрация' && !applicationStatus && (
-                    <div className="mt-2 p-2 bg-yellow-900 text-white text-sm rounded-md">
-                      Индивидуальное участие в этом соревновании не предусмотрено
-                    </div>
-                  )
-                )}
                 {applicationStatus && (
                   <div className="mt-2 inline-block px-3 py-1 rounded-md bg-gray-800 text-sm">
                     Статус заявки:{' '}
