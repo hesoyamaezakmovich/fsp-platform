@@ -10,6 +10,7 @@ const TeamDetails = () => {
   const [user, setUser] = useState(null);
   const [team, setTeam] = useState(null);
   const [teamMembers, setTeamMembers] = useState([]);
+  const [results, setResults] = useState([]); // Новое состояние для результатов
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -19,7 +20,7 @@ const TeamDetails = () => {
   const [addMemberLoading, setAddMemberLoading] = useState(false);
   const [addMemberError, setAddMemberError] = useState(null);
   const [applications, setApplications] = useState([]);
-  const [joinRequests, setJoinRequests] = useState([]); // Новое состояние для запросов
+  const [joinRequests, setJoinRequests] = useState([]);
 
   // Получение текущего пользователя
   useEffect(() => {
@@ -31,7 +32,7 @@ const TeamDetails = () => {
     fetchUser();
   }, []);
 
-  // Загрузка данных команды и запросов на вступление
+  // Загрузка данных команды, запросов на вступление и результатов
   useEffect(() => {
     const fetchTeam = async () => {
       if (!id || !user) return;
@@ -85,6 +86,25 @@ const TeamDetails = () => {
         if (appError) throw appError;
         
         setApplications(appData);
+
+        // Загружаем результаты соревнований
+        const { data: resultsData, error: resultsError } = await supabase
+          .from('competition_results')
+          .select(`
+            id,
+            competition_id,
+            team_id,
+            place,
+            score,
+            result_data,
+            recorded_at,
+            competitions(name, start_date, end_date, status)
+          `)
+          .eq('team_id', id);
+
+        if (resultsError) throw resultsError;
+
+        setResults(resultsData || []);
         
       } catch (error) {
         console.error('Ошибка при загрузке команды:', error.message);
@@ -106,8 +126,8 @@ const TeamDetails = () => {
             competition_id,
             status,
             created_at,
-            users (full_name, email),
-            competitions (name)
+            users(full_name, email),
+            competitions(name)
           `)
           .eq('team_id', id)
           .eq('status', 'pending');
@@ -130,7 +150,6 @@ const TeamDetails = () => {
     try {
       setLoading(true);
 
-      // Обновляем статус запроса
       const { error: updateError } = await supabase
         .from('team_join_requests')
         .update({ status: action })
@@ -141,7 +160,6 @@ const TeamDetails = () => {
       if (action === 'accepted') {
         const request = joinRequests.find(req => req.id === requestId);
         if (request) {
-          // Добавляем пользователя в команду
           const { data: memberData, error: insertError } = await supabase
             .from('team_members')
             .insert({ team_id: id, user_id: request.user_id })
@@ -154,12 +172,10 @@ const TeamDetails = () => {
 
           if (insertError) throw insertError;
 
-          // Обновляем список участников
           setTeamMembers([...teamMembers, memberData[0]]);
         }
       }
 
-      // Обновляем список запросов
       setJoinRequests(joinRequests.filter(req => req.id !== requestId));
       alert(`Запрос ${action === 'accepted' ? 'принят' : 'отклонен'}!`);
     } catch (err) {
@@ -170,12 +186,10 @@ const TeamDetails = () => {
     }
   };
 
-  // Проверка, является ли текущий пользователь капитаном команды
   const isTeamCaptain = () => {
     return team && user && team.captain_user_id === user.id;
   };
 
-  // Сохранение изменений названия команды
   const saveTeamName = async () => {
     if (!teamName.trim() || !isTeamCaptain()) return;
     
@@ -205,11 +219,9 @@ const TeamDetails = () => {
     }
   };
 
-  // Удаление участника из команды
   const removeMember = async (memberId, userId) => {
     if (!isTeamCaptain()) return;
     
-    // Подтверждение действия
     if (!window.confirm('Вы уверены, что хотите удалить этого участника из команды?')) {
       return;
     }
@@ -224,7 +236,6 @@ const TeamDetails = () => {
         
       if (error) throw error;
       
-      // Обновляем список участников
       setTeamMembers(teamMembers.filter(member => member.id !== memberId));
       
       alert('Участник удален из команды!');
@@ -237,11 +248,9 @@ const TeamDetails = () => {
     }
   };
 
-  // Удаление команды
   const deleteTeam = async () => {
     if (!isTeamCaptain()) return;
     
-    // Подтверждение действия
     if (!window.confirm('Вы уверены, что хотите удалить команду? Это действие нельзя отменить.')) {
       return;
     }
@@ -249,7 +258,6 @@ const TeamDetails = () => {
     try {
       setLoading(true);
       
-      // Проверяем заявки в статусе не 'отклонена'
       const activeApplications = applications.filter(app => 
         app.status !== 'отклонена' && app.status !== 'отменена'
       );
@@ -258,7 +266,6 @@ const TeamDetails = () => {
         throw new Error('Нельзя удалить команду с активными заявками на соревнования. Сначала отмените заявки.');
       }
       
-      // Удаляем участников команды
       const { error: membersError } = await supabase
         .from('team_members')
         .delete()
@@ -266,7 +273,6 @@ const TeamDetails = () => {
         
       if (membersError) throw membersError;
       
-      // Удаляем саму команду
       const { error: teamError } = await supabase
         .from('teams')
         .delete()
@@ -285,7 +291,6 @@ const TeamDetails = () => {
     }
   };
 
-  // Добавление нового участника
   const addMember = async () => {
     if (!isTeamCaptain() || !newMemberEmail.trim()) return;
   
@@ -293,10 +298,6 @@ const TeamDetails = () => {
       setAddMemberLoading(true);
       setAddMemberError(null);
   
-      // Логируем email для отладки
-      console.log('Trying to find user with email:', newMemberEmail.trim());
-  
-      // Ищем пользователя по email
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('id, full_name, email')
@@ -307,19 +308,16 @@ const TeamDetails = () => {
         throw new Error('Пользователь с email "' + newMemberEmail.trim() + '" не найден. Убедитесь, что пользователь зарегистрирован в системе.');
       }
       
-      // Проверяем, не является ли пользователь уже участником команды
       const isAlreadyMember = teamMembers.some(member => member.user_id === userData.id);
       
       if (isAlreadyMember) {
         throw new Error('Этот пользователь уже является участником команды');
       }
       
-      // Проверяем, не является ли пользователь капитаном
       if (userData.id === team.captain_user_id) {
         throw new Error('Нельзя добавить капитана как участника команды');
       }
       
-      // Добавляем пользователя в команду
       const { data: memberData, error: memberError } = await supabase
         .from('team_members')
         .insert([
@@ -337,12 +335,10 @@ const TeamDetails = () => {
         
       if (memberError) throw memberError;
       
-      // Обновляем список участников
       const newMember = memberData[0];
       
       setTeamMembers([...teamMembers, newMember]);
       
-      // Закрываем модальное окно и очищаем поле
       setShowAddMemberModal(false);
       setNewMemberEmail('');
       
@@ -356,14 +352,12 @@ const TeamDetails = () => {
     }
   };
 
-  // Форматирование даты
   const formatDate = (dateString) => {
     if (!dateString) return '';
     const date = new Date(dateString);
     return date.toLocaleDateString('ru-RU');
   };
 
-  // Показать индикатор загрузки
   if (loading && !team) {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
@@ -372,7 +366,6 @@ const TeamDetails = () => {
     );
   }
 
-  // Показать сообщение об ошибке
   if (error && !team) {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
@@ -480,7 +473,6 @@ const TeamDetails = () => {
                   </div>
                   
                   <div className="divide-y divide-gray-700">
-                    {/* Капитан */}
                     <div className="py-3 flex justify-between items-center">
                       <div>
                         <span className="font-medium">{team.users?.full_name || team.users?.email}</span>
@@ -491,7 +483,6 @@ const TeamDetails = () => {
                       </div>
                     </div>
                     
-                    {/* Участники */}
                     {teamMembers.length > 0 ? (
                       teamMembers.map(member => (
                         <div key={member.id} className="py-3 flex justify-between items-center">
@@ -522,7 +513,6 @@ const TeamDetails = () => {
                   </div>
                 </div>
                 
-                {/* Новый раздел для запросов на вступление */}
                 {isTeamCaptain() && (
                   <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 mb-6">
                     <h2 className="text-xl font-semibold mb-4">Запросы на вступление</h2>
@@ -568,7 +558,49 @@ const TeamDetails = () => {
                   </div>
                 )}
                 
-                {/* Заявки на соревнования */}
+                <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 mb-6">
+                  <h2 className="text-xl font-semibold mb-4">Результаты соревнований</h2>
+                  {results.length > 0 ? (
+                    <div className="divide-y divide-gray-700">
+                      {results.map(result => (
+                        <div key={result.id} className="py-3">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h3 className="font-medium">{result.competitions?.name || 'Соревнование'}</h3>
+                              <p className="text-sm text-gray-400">
+                                Даты: {formatDate(result.competitions?.start_date)} - {formatDate(result.competitions?.end_date)}
+                              </p>
+                              <p className="text-sm text-gray-400">
+                                Место: {result.place || 'Не указано'}
+                              </p>
+                              <p className="text-sm text-gray-400">
+                                Баллы: {result.score || 'Не указано'}
+                              </p>
+                              {result.result_data?.details && (
+                                <p className="text-sm text-gray-400">
+                                  Дополнительно: {result.result_data.details}
+                                </p>
+                              )}
+                            </div>
+                            {result.competitions && (
+                              <Link
+                                to={`/competitions/${result.competition_id}`}
+                                className="text-blue-500 hover:text-blue-400 text-sm"
+                              >
+                                Подробнее
+                              </Link>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center text-gray-400 py-4">
+                      Нет результатов соревнований
+                    </div>
+                  )}
+                </div>
+                
                 <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
                   <h2 className="text-xl font-semibold mb-4">Заявки на соревнования</h2>
                   
@@ -596,7 +628,6 @@ const TeamDetails = () => {
                               </span>
                             </div>
                           </div>
-                          
                           <div className="mt-2 flex justify-between text-sm text-gray-400">
                             <span>Подана: {formatDate(app.submitted_at)}</span>
                             {app.competitions && (
@@ -620,42 +651,35 @@ const TeamDetails = () => {
               </div>
               
               <div>
-                {/* Информация о команде */}
                 <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
                   <h2 className="text-lg font-semibold mb-4">Информация о команде</h2>
-                  
                   <div className="space-y-3">
                     <div>
                       <p className="text-gray-400 mb-1">Капитан:</p>
                       <p>{team.users?.full_name || team.users?.email}</p>
                     </div>
-                    
                     <div>
                       <p className="text-gray-400 mb-1">Дата создания:</p>
                       <p>{formatDate(team.created_at)}</p>
                     </div>
-                    
                     <div>
                       <p className="text-gray-400 mb-1">Количество участников:</p>
-                      <p>{teamMembers.length + 1} (включая капитана)</p> {/* +1 для капитана */}
+                      <p>{teamMembers.length + 1} (включая капитана)</p>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
             
-            {/* Модальное окно добавления участника */}
             {showAddMemberModal && (
               <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
                 <div className="bg-gray-800 rounded-lg max-w-md w-full p-6 mx-4">
                   <h3 className="text-xl font-semibold mb-4">Добавить участника в команду</h3>
-                  
                   {addMemberError && (
                     <div className="mb-4 p-3 bg-red-900 text-white rounded-md">
                       {addMemberError}
                     </div>
                   )}
-                  
                   <div className="mb-6">
                     <label className="block text-gray-300 mb-1">Email участника *</label>
                     <input
@@ -670,7 +694,6 @@ const TeamDetails = () => {
                       Пользователь должен быть зарегистрирован в системе с указанным email
                     </p>
                   </div>
-                  
                   <div className="flex justify-end space-x-3">
                     <button
                       onClick={() => {
@@ -682,7 +705,6 @@ const TeamDetails = () => {
                     >
                       Отмена
                     </button>
-                    
                     <button
                       onClick={addMember}
                       disabled={addMemberLoading || !newMemberEmail.trim()}

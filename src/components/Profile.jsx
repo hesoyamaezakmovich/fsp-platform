@@ -18,7 +18,6 @@ const Profile = () => {
     bio: '',
   });
 
-  // Загрузка текущего пользователя
   useEffect(() => {
     const fetchUser = async () => {
       const { data } = await supabase.auth.getUser();
@@ -27,7 +26,6 @@ const Profile = () => {
     fetchUser();
   }, []);
 
-  // Загрузка данных профиля, регионов и истории участия
   useEffect(() => {
     const fetchData = async () => {
       if (!user) return;
@@ -52,7 +50,6 @@ const Profile = () => {
           .single();
 
         if (profileError && profileError.code === 'PGRST116') {
-          console.log('Профиль не найден, создаем новый');
           const { data: newProfileData, error: insertError } = await supabase
             .from('users')
             .insert([
@@ -67,7 +64,6 @@ const Profile = () => {
             .single();
 
           if (insertError) {
-            console.error('Ошибка при создании профиля:', insertError);
             throw new Error('Не удалось создать профиль пользователя');
           }
 
@@ -94,22 +90,8 @@ const Profile = () => {
         if (regionsError) throw regionsError;
         setRegions(regionsData || []);
 
-        // Загрузка истории участия
-        // Получаем team_id из team_members
-        const { data: teamMembersData, error: teamMembersError } = await supabase
-          .from('team_members')
-          .select('team_id')
-          .eq('user_id', user.id);
-
-        if (teamMembersError) {
-          console.error('Ошибка загрузки данных team_members:', teamMembersError);
-          throw new Error(`Ошибка загрузки данных team_members: ${teamMembersError.message}`);
-        }
-
-        const teamIds = teamMembersData.map((member) => member.team_id) || [];
-
-        // Запрашиваем competition_results
-        const { data: historyData, error: historyError } = await supabase
+        // 1. Индивидуальные результаты
+        const { data: individualResults, error: individualError } = await supabase
           .from('competition_results')
           .select(`
             id,
@@ -123,31 +105,79 @@ const Profile = () => {
             competitions(name, start_date, end_date, discipline_id, disciplines(name), status),
             teams(name)
           `)
-          .or(`user_id.eq.${user.id}${teamIds.length > 0 ? `,team_id.in.(${teamIds.join(',')})` : ''}`);
-          // Убрали .eq('competitions.status', 'результаты_опубликованы') для теста
+          .eq('user_id', user.id)
+          .eq('competitions.status', 'завершено');
 
-        if (historyError) {
-          console.error('Ошибка загрузки истории участия:', historyError);
-          throw new Error(`Ошибка загрузки истории участия: ${historyError.message}`);
+        if (individualError) {
+          throw new Error(`Ошибка загрузки индивидуальных результатов: ${individualError.message}`);
         }
 
-        // Отладка: выводим полученные данные
-        console.log('Полученные данные истории участия:', historyData);
-        // Проверяем, есть ли записи с competitions == null
-        historyData.forEach((result, index) => {
-          if (!result.competitions) {
-            console.warn(`Запись ${index} (id: ${result.id}) имеет competitions: null`);
-          } else {
-            console.log(`Запись ${index}: competitions.status = ${result.competitions.status}`);
-            if (result.competitions.discipline_id && !result.competitions.disciplines) {
-              console.warn(
-                `Запись ${index}: discipline_id = ${result.competitions.discipline_id}, но disciplines: null`
-              );
-            }
-          }
-        });
+        let historyData = individualResults || [];
 
-        setHistory(historyData || []);
+        // 2. Командные результаты
+        // 2.1. Найти команды, где пользователь — капитан
+        const { data: captainTeams, error: captainError } = await supabase
+          .from('teams')
+          .select('id, name')
+          .eq('captain_user_id', user.id);
+
+        if (captainError) {
+          throw new Error(`Ошибка загрузки команд (капитан): ${captainError.message}`);
+        }
+
+        // 2.2. Найти команды, где пользователь — участник
+        const { data: memberTeams, error: memberError } = await supabase
+          .from('team_members')
+          .select(`
+            team_id,
+            teams(id, name)
+          `)
+          .eq('user_id', user.id);
+
+        if (memberError) {
+          throw new Error(`Ошибка загрузки команд (участник): ${memberError.message}`);
+        }
+
+        // Объединяем команды (капитан + участники), избегая дубликатов
+        const allTeams = [...(captainTeams || []), ...(memberTeams?.map(mt => mt.teams) || [])];
+        const uniqueTeamIds = [...new Set(allTeams.map(team => team.id))];
+        const uniqueTeams = uniqueTeamIds.map(id => allTeams.find(team => team.id === id));
+
+        // 2.3. Получаем результаты для всех команд
+        if (uniqueTeamIds.length > 0) {
+          const { data: teamResults, error: teamError } = await supabase
+            .from('competition_results')
+            .select(`
+              id,
+              competition_id,
+              user_id,
+              team_id,
+              place,
+              score,
+              result_data,
+              recorded_at,
+              competitions(name, start_date, end_date, discipline_id, disciplines(name), status),
+              teams(name)
+            `)
+            .in('team_id', uniqueTeamIds)
+            .eq('competitions.status', 'завершено');
+
+          if (teamError) {
+            throw new Error(`Ошибка загрузки командных результатов: ${teamError.message}`);
+          }
+
+          // Добавляем командные результаты, избегая дубликатов
+          teamResults.forEach((teamResult) => {
+            if (!historyData.some((result) => result.id === teamResult.id)) {
+              historyData.push(teamResult);
+            }
+          });
+        }
+
+        // Сортируем результаты по дате записи
+        historyData.sort((a, b) => new Date(b.recorded_at) - new Date(a.recorded_at));
+
+        setHistory(historyData);
       } catch (error) {
         console.error('Ошибка при загрузке данных:', error.message);
         setError('Не удалось загрузить профиль или историю участия. Попробуйте позже.');
@@ -159,7 +189,6 @@ const Profile = () => {
     fetchData();
   }, [user]);
 
-  // Обработчик изменения полей формы
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData({
@@ -168,7 +197,6 @@ const Profile = () => {
     });
   };
 
-  // Обработчик сохранения профиля
   const handleSave = async () => {
     try {
       setLoading(true);
@@ -199,13 +227,11 @@ const Profile = () => {
     }
   };
 
-  // Форматирование даты
   const formatDate = (dateString) => {
     if (!dateString) return 'Не указана';
     return new Date(dateString).toLocaleDateString('ru-RU');
   };
 
-  // Проверка загрузки
   if (!user || loading) {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
@@ -324,7 +350,6 @@ const Profile = () => {
           )}
         </div>
 
-        {/* История участия */}
         <div className="mt-8">
           <h2 className="text-xl font-semibold mb-4">История участия</h2>
           {history.length === 0 ? (
@@ -361,6 +386,9 @@ const Profile = () => {
                         </p>
                       )}
                       <p className="text-sm text-gray-400">
+                        Тип участия: {result.team_id ? 'Командное' : 'Индивидуальное'}
+                      </p>
+                      <p className="text-sm text-gray-400">
                         Место: {result.place || 'Не указано'}
                       </p>
                       <p className="text-sm text-gray-400">
@@ -372,6 +400,14 @@ const Profile = () => {
                         </p>
                       )}
                     </div>
+                    {result.competitions && (
+                      <Link
+                        to={`/competitions/${result.competition_id}`}
+                        className="text-blue-500 hover:text-blue-400 text-sm mt-2 sm:mt-0"
+                      >
+                        Подробнее
+                      </Link>
+                    )}
                   </div>
                 </div>
               ))}
