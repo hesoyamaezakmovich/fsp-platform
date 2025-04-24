@@ -1,7 +1,7 @@
 // src/components/CompetitionsList.jsx
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../supabaseClient';
 import { Link } from 'react-router-dom';
+import { supabase } from '../supabaseClient';
 import Navbar from './Navbar';
 
 const CompetitionCard = ({ competition }) => {
@@ -43,7 +43,6 @@ const CompetitionCard = ({ competition }) => {
         </span>
       </div>
       
-      {/* Фиксируем высоту описания на 2 строки */}
       <div className="mt-2 min-h-[20px] line-clamp-2">
         <p className="text-gray-400 text-sm">
           {competition.description || 'Нет описания'}
@@ -85,6 +84,11 @@ const CompetitionCard = ({ competition }) => {
           <span className="px-2 py-1 bg-gray-700 rounded-full text-xs text-purple-400">
             {competition.discipline_name || 'Общее программирование'}
           </span>
+          {competition.region_name && (
+            <span className="px-2 py-1 bg-gray-700 rounded-full text-xs text-orange-400">
+              {competition.region_name}
+            </span>
+          )}
         </div>
       </div>
     </div>
@@ -99,12 +103,13 @@ const CompetitionsList = () => {
   const [error, setError] = useState(null);
   const [filters, setFilters] = useState({
     type: '',
-    status: '',
+    region_id: '',
     discipline_id: '',
     search: ''
   });
   const [showFilters, setShowFilters] = useState(false);
   const [disciplines, setDisciplines] = useState([]);
+  const [regions, setRegions] = useState([]);
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -148,6 +153,21 @@ const CompetitionsList = () => {
   }, []);
 
   useEffect(() => {
+    const fetchRegions = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('regions')
+          .select('id, name');
+        if (error) throw error;
+        setRegions(data || []);
+      } catch (error) {
+        console.error('Ошибка при загрузке регионов:', error.message);
+      }
+    };
+    fetchRegions();
+  }, []);
+
+  useEffect(() => {
     const fetchCompetitions = async () => {
       setLoading(true);
       try {
@@ -164,7 +184,9 @@ const CompetitionsList = () => {
             start_date,
             end_date,
             discipline_id,
-            disciplines!inner(id, name)
+            region_id,
+            disciplines!inner(id, name),
+            regions(id, name)
           `)
           .order('created_at', { ascending: false });
 
@@ -174,7 +196,9 @@ const CompetitionsList = () => {
         const formattedCompetitions = data.map(comp => ({
           ...comp,
           discipline_id: comp.discipline_id,
-          discipline_name: comp.disciplines?.name
+          discipline_name: comp.disciplines?.name,
+          region_id: comp.region_id,
+          region_name: comp.regions?.name
         }));
 
         setCompetitions(formattedCompetitions);
@@ -206,19 +230,10 @@ const CompetitionsList = () => {
       return 'завершено';
     };
 
-    const status = getStatus();
-
     if (filters.type && competition.type !== filters.type) return false;
     if (filters.discipline_id && competition.discipline_id !== parseInt(filters.discipline_id)) return false;
+    if (filters.region_id && (!competition.region_id || competition.region_id !== parseInt(filters.region_id))) return false;
     if (filters.search && !competition.name.toLowerCase().includes(filters.search.toLowerCase())) return false;
-    
-    if (filters.status) {
-      if (filters.status === 'черновик' || filters.status === 'опубликовано') {
-        if (competition.status !== filters.status) return false;
-      } else {
-        if (status !== filters.status) return false;
-      }
-    }
     
     return true;
   });
@@ -231,7 +246,7 @@ const CompetitionsList = () => {
   const resetFilters = () => {
     setFilters({
       type: '',
-      status: '',
+      region_id: '',
       discipline_id: '',
       search: ''
     });
@@ -297,19 +312,19 @@ const CompetitionsList = () => {
             </div>
             
             <div>
-              <label className="block text-gray-300 text-sm mb-1">Статус</label>
+              <label className="block text-gray-300 text-sm mb-1">Регион</label>
               <select
-                name="status"
-                value={filters.status}
+                name="region_id"
+                value={filters.region_id}
                 onChange={handleFilterChange}
                 className="w-full p-2 bg-gray-700 border border-gray-600 rounded focus:outline-none focus:border-blue-500"
               >
-                <option value="">Все статусы</option>
-                <option value="черновик">Черновик</option>
-                <option value="опубликовано">Опубликовано</option>
-                <option value="открыта_регистрация">Регистрация открыта</option>
-                <option value="идет_соревнование">Идет соревнование</option>
-                <option value="завершено">Завершено</option>
+                <option value="">Все регионы</option>
+                {regions.map(region => (
+                  <option key={region.id} value={region.id}>
+                    {region.name}
+                  </option>
+                ))}
               </select>
             </div>
             
