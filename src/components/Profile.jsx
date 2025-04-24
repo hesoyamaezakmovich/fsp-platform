@@ -4,6 +4,7 @@ import { supabase } from '../supabaseClient';
 import { Link } from 'react-router-dom';
 import Navbar from './Navbar';
 
+
 const Profile = () => {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);

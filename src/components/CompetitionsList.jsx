@@ -26,76 +26,67 @@ const CompetitionCard = ({ competition }) => {
   const status = getCompetitionStatus();
 
   return (
-    <Link to={`/competitions/${competition.id}`}>
-      <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 sm:p-5 hover:shadow-lg transition">
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start">
-          <h3 className="text-lg font-semibold text-white mb-2 sm:mb-0">{competition.name}</h3>
-          <span className={`px-2 py-1 rounded-full text-xs inline-block sm:inline mt-1 sm:mt-0 ${
-            status === 'открыта_регистрация' ? 'bg-green-900 text-green-300' :
-            status === 'идет_соревнование' ? 'bg-blue-900 text-blue-300' :
-            status === 'завершено' ? 'bg-gray-700 text-gray-300' :
-            'bg-yellow-900 text-yellow-300'
-          }`}>
-            {status === 'открыта_регистрация' ? 'Регистрация открыта' :
-            status === 'идет_соревнование' ? 'Идет соревнование' :
-            status === 'завершено' ? 'Завершено' :
-            status === 'регистрация_закрыта' ? 'Регистрация закрыта' :
-            'Скоро открытие'}
+    <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 sm:p-5 hover:shadow-lg transition">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start">
+        <h3 className="text-lg font-semibold text-white mb-2 sm:mb-0">{competition.name}</h3>
+        <span className={`px-2 py-1 rounded-full text-xs inline-block sm:inline mt-1 sm:mt-0 ${
+          status === 'открыта_регистрация' ? 'bg-green-900 text-green-300' :
+          status === 'идет_соревнование' ? 'bg-blue-900 text-blue-300' :
+          status === 'завершено' ? 'bg-gray-700 text-gray-300' :
+          'bg-yellow-900 text-yellow-300'
+        }`}>
+          {status === 'открыта_регистрация' ? 'Регистрация открыта' :
+          status === 'идет_соревнование' ? 'Идет соревнование' :
+          status === 'завершено' ? 'Завершено' :
+          status === 'регистрация_закрыта' ? 'Регистрация закрыта' :
+          'Скоро открытие'}
+        </span>
+      </div>
+      
+      <p className="text-gray-400 text-sm mt-2">
+        {competition.description?.length > 100 
+          ? competition.description.substring(0, 100) + '...' 
+          : competition.description}
+      </p>
+      
+      <div className="mt-4 text-sm text-gray-500">
+        <div className="flex flex-col sm:flex-row sm:justify-between">
+          <span>Начало регистрации:</span>
+          <span className="text-gray-400">
+            {new Date(competition.registration_start_date).toLocaleDateString('ru-RU')}
           </span>
         </div>
-        
-        <p className="text-gray-400 text-sm mt-2">
-          {competition.description?.length > 100 
-            ? competition.description.substring(0, 100) + '...' 
-            : competition.description}
-        </p>
-        
-        <div className="mt-4 text-sm text-gray-500">
-          <div className="flex flex-col sm:flex-row sm:justify-between">
-            <span>Начало регистрации:</span>
-            <span className="text-gray-400">
-              {new Date(competition.registration_start_date).toLocaleDateString('ru-RU')}
-            </span>
-          </div>
-          <div className="flex flex-col sm:flex-row sm:justify-between mt-1">
-            <span>Конец регистрации:</span>
-            <span className="text-gray-400">
-              {new Date(competition.registration_end_date).toLocaleDateString('ru-RU')}
-            </span>
-          </div>
-          <div className="flex flex-col sm:flex-row sm:justify-between mt-1">
-            <span>Начало соревнования:</span>
-            <span className="text-gray-400">
-              {new Date(competition.start_date).toLocaleDateString('ru-RU')}
-            </span>
-          </div>
+        <div className="flex flex-col sm:flex-row sm:justify-between mt-1">
+          <span>Конец регистрации:</span>
+          <span className="text-gray-400">
+            {new Date(competition.registration_end_date).toLocaleDateString('ru-RU')}
+          </span>
         </div>
-        
-        <div className="mt-4 flex flex-col sm:flex-row sm:justify-between sm:items-center">
-          <div className="flex flex-wrap gap-2 mb-2 sm:mb-0">
-            <span className={`px-2 py-1 bg-gray-700 rounded-full text-xs ${
-              competition.type === 'открытое' ? 'text-green-400' :
-              competition.type === 'региональное' ? 'text-yellow-400' :
-              'text-blue-400'
-            }`}>
-              {competition.type === 'открытое' ? 'Открытое' :
-              competition.type === 'региональное' ? 'Региональное' :
-              'Федеральное'}
-            </span>
-            <span className="px-2 py-1 bg-gray-700 rounded-full text-xs text-purple-400">
-              {competition.discipline_name || 'Общее программирование'}
-            </span>
-          </div>
-          
-          <Link 
-            to={`/competitions/${competition.id}`}
-            className="text-blue-500 hover:text-blue-400 text-sm"
-          >
-            Подробнее →
-          </Link>
+        <div className="flex flex-col sm:flex-row sm:justify-between mt-1">
+          <span>Начало соревнования:</span>
+          <span className="text-gray-400">
+            {new Date(competition.start_date).toLocaleDateString('ru-RU')}
+          </span>
         </div>
       </div>
-    </Link>
+      
+      <div className="mt-4 flex flex-col sm:flex-row sm:justify-between sm:items-center">
+        <div className="flex flex-wrap gap-2 mb-2 sm:mb-0">
+          <span className={`px-2 py-1 bg-gray-700 rounded-full text-xs ${
+            competition.type === 'открытое' ? 'text-green-400' :
+            competition.type === 'региональное' ? 'text-yellow-400' :
+            'text-blue-400'
+          }`}>
+            {competition.type === 'открытое' ? 'Открытое' :
+            competition.type === 'региональное' ? 'Региональное' :
+            'Федеральное'}
+          </span>
+          <span className="px-2 py-1 bg-gray-700 rounded-full text-xs text-purple-400">
+            {competition.discipline_name || 'Общее программирование'}
+          </span>
+        </div>
+      </div>
+    </div>
   );
 };
 
@@ -400,10 +391,9 @@ const CompetitionsList = () => {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {filteredCompetitions.map(competition => (
-              <CompetitionCard 
-                key={competition.id} 
-                competition={competition} 
-              />
+              <Link key={competition.id} to={`/competitions/${competition.id}`}>
+                <CompetitionCard competition={competition} />
+              </Link>
             ))}
           </div>
         )}

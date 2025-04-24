@@ -1,4 +1,4 @@
-// src/App.jsx с добавленным маршрутом для управления заявками
+// src/App.jsx с добавленным маршрутом для компонента аналитики
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
@@ -10,7 +10,7 @@ import Dashboard from './components/Dashboard';
 import CompetitionsList from './components/CompetitionsList';
 import CompetitionCreate from './components/CompetitionCreate';
 import CompetitionDetails from './components/CompetitionDetails';
-import ApplicationsManagement from './components/ApplicationsManagement'; // Новый компонент
+import ApplicationsManagement from './components/ApplicationsManagement';
 import TeamsList from './components/TeamsList'; 
 import TeamDetails from './components/TeamDetails';
 import Profile from './components/Profile';
@@ -18,6 +18,7 @@ import ForgotPassword from './components/ForgotPassword';
 import ResetPassword from './components/ResetPassword';
 import CompetitionEdit from './components/CompetitionEdit';
 import CompetitionResultsForm from './components/CompetitionResultsForm';
+import AnalyticsDashboard from './components/AnalyticsDashboard'; // Новый импорт
 
 // Компонент для защищенных маршрутов
 const PrivateRoute = ({ children }) => {
@@ -104,7 +105,6 @@ const App = () => {
           </PrivateRoute>
         } />
         
-        {/* Новый маршрут для управления заявками */}
         <Route path="/competitions/:id/applications" element={
           <PrivateRoute>
             <ApplicationsManagement />
@@ -129,10 +129,16 @@ const App = () => {
           </PrivateRoute>
         } />
         
-        {/* Добавляем маршрут для редактирования соревнования */}
         <Route path="/competitions/:id/edit" element={
           <PrivateRoute>
             <CompetitionEdit />
+          </PrivateRoute>
+        } />
+        
+        {/* Новый маршрут для аналитики */}
+        <Route path="/analytics" element={
+          <PrivateRoute>
+            <AnalyticsDashboard />
           </PrivateRoute>
         } />
         
