@@ -18,6 +18,7 @@ const Profile = () => {
     bio: '',
   });
 
+  // Загрузка текущего пользователя
   useEffect(() => {
     const fetchUser = async () => {
       const { data } = await supabase.auth.getUser();
@@ -26,6 +27,7 @@ const Profile = () => {
     fetchUser();
   }, []);
 
+  // Загрузка данных профиля, регионов и истории участия
   useEffect(() => {
     const fetchData = async () => {
       if (!user) return;
@@ -93,6 +95,20 @@ const Profile = () => {
         setRegions(regionsData || []);
 
         // Загрузка истории участия
+        // Получаем team_id из team_members
+        const { data: teamMembersData, error: teamMembersError } = await supabase
+          .from('team_members')
+          .select('team_id')
+          .eq('user_id', user.id);
+
+        if (teamMembersError) {
+          console.error('Ошибка загрузки данных team_members:', teamMembersError);
+          throw new Error(`Ошибка загрузки данных team_members: ${teamMembersError.message}`);
+        }
+
+        const teamIds = teamMembersData.map((member) => member.team_id) || [];
+
+        // Запрашиваем competition_results
         const { data: historyData, error: historyError } = await supabase
           .from('competition_results')
           .select(`
@@ -104,17 +120,32 @@ const Profile = () => {
             score,
             result_data,
             recorded_at,
-            competitions(name, start_date, end_date, disciplines(name)),
+            competitions(name, start_date, end_date, discipline_id, disciplines(name), status),
             teams(name)
           `)
-          .or(`user_id.eq.${user.id},team_id.in.(
-            select team_id from team_members where user_id = '${user.id}'
-          )`);
+          .or(`user_id.eq.${user.id}${teamIds.length > 0 ? `,team_id.in.(${teamIds.join(',')})` : ''}`);
+          // Убрали .eq('competitions.status', 'результаты_опубликованы') для теста
 
         if (historyError) {
           console.error('Ошибка загрузки истории участия:', historyError);
           throw new Error(`Ошибка загрузки истории участия: ${historyError.message}`);
         }
+
+        // Отладка: выводим полученные данные
+        console.log('Полученные данные истории участия:', historyData);
+        // Проверяем, есть ли записи с competitions == null
+        historyData.forEach((result, index) => {
+          if (!result.competitions) {
+            console.warn(`Запись ${index} (id: ${result.id}) имеет competitions: null`);
+          } else {
+            console.log(`Запись ${index}: competitions.status = ${result.competitions.status}`);
+            if (result.competitions.discipline_id && !result.competitions.disciplines) {
+              console.warn(
+                `Запись ${index}: discipline_id = ${result.competitions.discipline_id}, но disciplines: null`
+              );
+            }
+          }
+        });
 
         setHistory(historyData || []);
       } catch (error) {
@@ -128,6 +159,7 @@ const Profile = () => {
     fetchData();
   }, [user]);
 
+  // Обработчик изменения полей формы
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData({
@@ -136,6 +168,7 @@ const Profile = () => {
     });
   };
 
+  // Обработчик сохранения профиля
   const handleSave = async () => {
     try {
       setLoading(true);
@@ -166,6 +199,13 @@ const Profile = () => {
     }
   };
 
+  // Форматирование даты
+  const formatDate = (dateString) => {
+    if (!dateString) return 'Не указана';
+    return new Date(dateString).toLocaleDateString('ru-RU');
+  };
+
+  // Проверка загрузки
   if (!user || loading) {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
@@ -269,11 +309,7 @@ const Profile = () => {
                     </div>
                     <div className="mb-4">
                       <span className="block text-gray-400 text-sm">Дата регистрации</span>
-                      <span className="text-lg">
-                        {profile?.created_at
-                          ? new Date(profile.created_at).toLocaleDateString('ru-RU')
-                          : 'Не указана'}
-                      </span>
+                      <span className="text-lg">{formatDate(profile?.created_at)}</span>
                     </div>
                   </div>
                 </div>
@@ -294,7 +330,10 @@ const Profile = () => {
           {history.length === 0 ? (
             <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
               <p className="text-gray-400 text-center py-4">
-                У вас пока нет результатов участия в соревнованиях.
+                У вас пока нет результатов участия в соревнованиях.{' '}
+                <Link to="/competitions" className="text-blue-500 hover:underline">
+                  Найти соревнования
+                </Link>
               </p>
             </div>
           ) : (
@@ -307,18 +346,18 @@ const Profile = () => {
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start">
                     <div>
                       <h3 className="text-lg font-semibold">
-                        {result.competitions?.name}
+                        {result.competitions?.name || `Соревнование ${result.competition_id}`}
                       </h3>
                       <p className="text-sm text-gray-400">
-                        Дисциплина: {result.competitions?.disciplines?.name}
+                        Дисциплина: {result.competitions?.disciplines?.name || 'Не указана'}
                       </p>
                       <p className="text-sm text-gray-400">
-                        Даты: {new Date(result.competitions?.start_date).toLocaleDateString('ru-RU')} -{' '}
-                        {new Date(result.competitions?.end_date).toLocaleDateString('ru-RU')}
+                        Даты: {formatDate(result.competitions?.start_date)} -{' '}
+                        {formatDate(result.competitions?.end_date)}
                       </p>
                       {result.team_id && (
                         <p className="text-sm text-gray-400">
-                          Команда: {result.teams?.name}
+                          Команда: {result.teams?.name || 'Название команды не указано'}
                         </p>
                       )}
                       <p className="text-sm text-gray-400">

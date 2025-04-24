@@ -14,7 +14,7 @@ const CompetitionDetails = () => {
   const [competition, setCompetition] = useState(null);
   const [user, setUser] = useState(null);
   const [userDetails, setUserDetails] = useState(null);
-  const [results, setResults] = useState([]); // Добавляем состояние для результатов
+  const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [userTeams, setUserTeams] = useState([]);
@@ -45,6 +45,19 @@ const CompetitionDetails = () => {
           if (!userError) {
             setUserDetails(userData);
           }
+
+          // Загружаем команды пользователя
+          const { data: teamsData, error: teamsError } = await supabase
+            .from('team_members')
+            .select('team_id, teams(name)')
+            .eq('user_id', data.user.id);
+
+          if (teamsError) {
+            console.error('Ошибка при загрузке команд:', teamsError);
+          } else {
+            setUserTeams(teamsData.map(member => member.team_id) || []);
+            console.log('Команды пользователя:', teamsData);
+          }
         }
       } catch (error) {
         console.error('Ошибка при загрузке пользователя:', error.message);
@@ -59,7 +72,7 @@ const CompetitionDetails = () => {
       try {
         setLoading(true);
         console.log('Загрузка данных соревнования:', { competitionId: id });
-  
+
         // Получение данных соревнования
         const { data: competitionData, error: competitionError } = await supabase
           .from('competitions')
@@ -70,27 +83,27 @@ const CompetitionDetails = () => {
           `)
           .eq('id', id)
           .single();
-  
+
         if (competitionError) throw competitionError;
-  
+
         if (competitionData) {
           const { data: organizerData, error: organizerError } = await supabase
             .from('users')
             .select('full_name, email')
             .eq('id', competitionData.organizer_user_id)
             .single();
-  
+
           if (!organizerError) {
             competitionData.organizer = organizerData;
           }
-  
+
           // Вычисляем текущий статус на основе дат
           const now = new Date();
           const regStart = new Date(competitionData.registration_start_date);
           const regEnd = new Date(competitionData.registration_end_date);
           const compStart = new Date(competitionData.start_date);
           const compEnd = new Date(competitionData.end_date);
-  
+
           let computedStatus = '';
           if (isNaN(regStart) || isNaN(regEnd) || isNaN(compStart) || isNaN(compEnd)) {
             computedStatus = 'ошибка';
@@ -105,25 +118,46 @@ const CompetitionDetails = () => {
           } else {
             computedStatus = 'завершено';
           }
-  
+
           // Если статус в базе данных отличается от вычисленного, обновляем его
           if (competitionData.status !== computedStatus && computedStatus !== 'ошибка') {
             const { error: updateError } = await supabase
               .from('competitions')
               .update({ status: computedStatus })
               .eq('id', id);
-  
+
             if (updateError) {
               console.error('Ошибка при обновлении статуса соревнования:', updateError);
             } else {
               competitionData.status = computedStatus;
             }
           }
-  
+
           setCompetition(competitionData);
+
+          // Получение результатов соревнования
+          const { data: resultsData, error: resultsError } = await supabase
+            .from('competition_results')
+            .select(`
+              id,
+              competition_id,
+              user_id,
+              team_id,
+              place,
+              score,
+              result_data,
+              users!competition_results_user_id_fkey(id, full_name, email),
+              teams!competition_results_team_id_fkey(id, name)
+            `)
+            .eq('competition_id', id);
+
+          if (resultsError) {
+            console.error('Ошибка при загрузке результатов:', resultsError);
+            throw resultsError;
+          }
+
+          setResults(resultsData || []);
         }
-  
-        // ... (остальной код: получение результатов, заявок и т.д.)
       } catch (error) {
         console.error('Ошибка при загрузке соревнования:', error.message);
         setError('Не удалось загрузить данные соревнования. Попробуйте позже.');
@@ -131,7 +165,7 @@ const CompetitionDetails = () => {
         setLoading(false);
       }
     };
-  
+
     if (id) {
       fetchCompetition();
     }
@@ -246,6 +280,14 @@ const CompetitionDetails = () => {
     const compStart = new Date(competition.start_date);
     const compEnd = new Date(competition.end_date);
 
+    console.log('Даты соревнования:', {
+      now: now.toISOString(),
+      regStart: regStart.toISOString(),
+      regEnd: regEnd.toISOString(),
+      compStart: compStart.toISOString(),
+      compEnd: compEnd.toISOString(),
+    });
+
     if (isNaN(regStart) || isNaN(regEnd) || isNaN(compStart) || isNaN(compEnd)) {
       console.error('Некорректные даты в соревновании:', competition);
       return 'ошибка';
@@ -257,6 +299,11 @@ const CompetitionDetails = () => {
     if (now >= compStart && now <= compEnd) return 'идет_соревнование';
     return 'завершено';
   };
+
+  // Проверяем, разрешено ли индивидуальное участие
+  const allowsIndividual = ['индивидуальное', 'командное_и_индивидуальное'].includes(competition?.participation_type);
+  // Проверяем, разрешено ли командное участие
+  const allowsTeam = ['командное', 'командное_и_индивидуальное'].includes(competition?.participation_type);
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
@@ -324,17 +371,15 @@ const CompetitionDetails = () => {
                       Подать заявку от региона
                     </button>
                   )}
-                  {canApplyAsAthlete() &&
-                    competition.participation_type !== 'индивидуальное' &&
-                    userTeams.length > 0 && (
-                      <button
-                        onClick={() => setShowTeamApplicationModal(true)}
-                        className="w-full md:w-auto px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md transition"
-                      >
-                        Подать командную заявку
-                      </button>
-                    )}
-                  {canApplyAsAthlete() && competition.participation_type !== 'командное' && (
+                  {canApplyAsAthlete() && allowsTeam && userTeams.length > 0 && (
+                    <button
+                      onClick={() => setShowTeamApplicationModal(true)}
+                      className="w-full md:w-auto px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md transition"
+                    >
+                      Подать командную заявку
+                    </button>
+                  )}
+                  {canApplyAsAthlete() && allowsIndividual && (
                     <button
                       onClick={() => setShowIndividualApplicationModal(true)}
                       className="w-full md:w-auto px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md transition"
@@ -353,13 +398,13 @@ const CompetitionDetails = () => {
                       {competition.regions?.name}
                     </div>
                   )}
-                {getCompetitionStatus() === 'открыта_регистрация' &&
-                  competition.participation_type === 'командное' &&
-                  !applicationStatus && (
+                {allowsIndividual ? null : (
+                  getCompetitionStatus() === 'открыта_регистрация' && !applicationStatus && (
                     <div className="mt-2 p-2 bg-yellow-900 text-white text-sm rounded-md">
                       Индивидуальное участие в этом соревновании не предусмотрено
                     </div>
-                  )}
+                  )
+                )}
                 {applicationStatus && (
                   <div className="mt-2 inline-block px-3 py-1 rounded-md bg-gray-800 text-sm">
                     Статус заявки:{' '}
@@ -468,7 +513,6 @@ const CompetitionDetails = () => {
             {user && (
               <TeamsLookingForMembers competitionId={id} currentUser={user} />
             )}
-            {/* Раздел результатов соревнования */}
             <div className="mt-8">
               <h2 className="text-xl font-semibold mb-4">Результаты соревнования</h2>
               {results.length === 0 ? (
@@ -511,7 +555,6 @@ const CompetitionDetails = () => {
                   ))}
                 </div>
               )}
-              
             </div>
             {showTeamApplicationModal && (
               <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
