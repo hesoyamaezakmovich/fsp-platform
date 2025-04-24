@@ -36,6 +36,11 @@ const AnalyticsDashboard = () => {
   // Активная вкладка для отображения данных
   const [activeTab, setActiveTab] = useState('competitions');
 
+  // Состояния для модального окна предпросмотра
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewData, setPreviewData] = useState([]);
+  const [previewHeaders, setPreviewHeaders] = useState([]);
+
   useEffect(() => {
     const fetchUser = async () => {
       const { data } = await supabase.auth.getUser();
@@ -357,10 +362,89 @@ const AnalyticsDashboard = () => {
     }
   };
 
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('ru-RU');
+  };
+
+  // Функция для подготовки данных предпросмотра
+  const preparePreviewData = () => {
+    let headers = [];
+    let data = [];
+    
+    if (activeTab === 'competitions') {
+      headers = ['ID', 'Название', 'Тип', 'Статус', 'Дисциплина', 'Регион', 'Дата начала', 'Дата окончания'];
+      
+      data = competitions.map(comp => [
+        comp.id,
+        comp.name,
+        comp.type,
+        comp.status,
+        comp.disciplines?.name || '',
+        comp.regions?.name || '',
+        formatDate(comp.start_date),
+        formatDate(comp.end_date)
+      ]);
+    } else if (activeTab === 'users') {
+      headers = ['ID', 'Имя', 'Email', 'Роль', 'Регион', 'Дата регистрации'];
+      
+      data = users.map(user => [
+        user.id,
+        user.full_name,
+        user.email,
+        user.role,
+        user.regions?.name || '',
+        formatDate(user.created_at)
+      ]);
+    } else if (activeTab === 'applications') {
+      headers = ['ID', 'Соревнование', 'Тип заявки', 'Статус', 'Заявитель', 'Дата подачи'];
+      
+      data = applications.map(app => {
+        let applicantName = '';
+        
+        if (app.application_type === 'индивидуальная') {
+          applicantName = app.users?.full_name || app.users?.email || '';
+        } else {
+          applicantName = app.teams?.name || '';
+        }
+        
+        return [
+          app.id,
+          app.competitions?.name || '',
+          app.application_type,
+          app.status,
+          applicantName,
+          formatDate(app.submitted_at)
+        ];
+      });
+    }
+    
+    setPreviewHeaders(headers);
+    setPreviewData(data.slice(0, 10)); // Показываем только первые 10 строк для предпросмотра
+    setShowPreview(true);
+  };
+
+  // Улучшенная функция экспорта CSV
   const exportToCSV = () => {
     let data = [];
     let headers = [];
     let filename = '';
+    
+    // Функция для экранирования специальных символов в CSV
+    const escapeCSV = (value) => {
+      if (value === null || value === undefined) return '';
+      
+      const stringValue = String(value);
+      
+      // Если значение содержит запятую, кавычки или перенос строки, оборачиваем его в кавычки
+      if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n') || stringValue.includes('\r')) {
+        // Экранируем кавычки, удваивая их
+        return `"${stringValue.replace(/"/g, '""')}"`;
+      }
+      
+      return stringValue;
+    };
     
     // Подготовка данных в зависимости от активной вкладки
     if (activeTab === 'competitions') {
@@ -413,27 +497,31 @@ const AnalyticsDashboard = () => {
       });
     }
     
-    // Создаем CSV-строку
-    const csvContent = [
-      headers.join(','),
-      ...data.map(row => row.join(','))
-    ].join('\n');
+    // Кодировка CSV с поддержкой кириллицы: BOM для UTF-8
+    const BOM = '\uFEFF';
     
-    // Создаем Blob и скачиваем
+    // Создаем CSV-строку с правильным экранированием значений
+    const csvRows = [
+      headers.map(header => escapeCSV(header)).join(','),
+      ...data.map(row => row.map(cell => escapeCSV(cell)).join(','))
+    ];
+    
+    const csvContent = BOM + csvRows.join('\r\n');
+    
+    // Создаем Blob с правильной кодировкой и скачиваем
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
+    
+    // Создаем ссылку для скачивания
     const link = document.createElement('a');
     link.setAttribute('href', url);
     link.setAttribute('download', filename);
     document.body.appendChild(link);
     link.click();
+    
+    // Очищаем ресурсы
     document.body.removeChild(link);
-  };
-
-  const formatDate = (dateString) => {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('ru-RU');
+    URL.revokeObjectURL(url); // Освобождаем ресурсы браузера
   };
 
   if (!user) {
@@ -651,8 +739,14 @@ const AnalyticsDashboard = () => {
           </div>
         </div>
         
-        {/* Кнопка экспорта */}
-        <div className="flex justify-end mb-4">
+        {/* Кнопки экспорта и предпросмотра */}
+        <div className="flex justify-end mb-4 space-x-4">
+          <button
+            onClick={preparePreviewData}
+            className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-md transition"
+          >
+            Предпросмотр данных
+          </button>
           <button
             onClick={exportToCSV}
             className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md transition"
@@ -912,6 +1006,66 @@ const AnalyticsDashboard = () => {
           )}
         </div>
       </div>
+      
+      {/* Модальное окно предпросмотра */}
+      {showPreview && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-lg max-w-4xl w-full p-6 mx-4 max-h-[90vh] overflow-auto">
+            <h3 className="text-xl font-semibold mb-4">Предпросмотр данных для экспорта</h3>
+            
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-700">
+                <thead>
+                  <tr>
+                    {previewHeaders.map((header, index) => (
+                      <th 
+                        key={index} 
+                        className="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider"
+                      >
+                        {header}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-700">
+                  {previewData.map((row, rowIndex) => (
+                    <tr key={rowIndex} className="hover:bg-gray-700">
+                      {row.map((cell, cellIndex) => (
+                        <td key={cellIndex} className="px-4 py-3">
+                          {cell}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            
+            <div className="mt-4 text-sm text-gray-400">
+              Показаны первые {previewData.length} записей из {activeTab === 'competitions' 
+                ? competitions.length 
+                : activeTab === 'users' 
+                  ? users.length 
+                  : applications.length}.
+            </div>
+            
+            <div className="flex justify-end space-x-4 mt-6">
+              <button
+                onClick={() => setShowPreview(false)}
+                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md transition"
+              >
+                Закрыть
+              </button>
+              <button
+                onClick={exportToCSV}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md transition"
+              >
+                Экспортировать в CSV
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
