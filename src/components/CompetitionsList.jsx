@@ -26,7 +26,7 @@ const CompetitionCard = ({ competition }) => {
   const status = getCompetitionStatus();
 
   return (
-    <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 sm:p-5 hover:shadow-lg transition">
+    <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 sm:p-5 hover:shadow-lg transition h-full flex flex-col">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start">
         <h3 className="text-lg font-semibold text-white mb-2 sm:mb-0">{competition.name}</h3>
         <span className={`px-2 py-1 rounded-full text-xs inline-block sm:inline mt-1 sm:mt-0 ${
@@ -43,13 +43,14 @@ const CompetitionCard = ({ competition }) => {
         </span>
       </div>
       
-      <p className="text-gray-400 text-sm mt-2">
-        {competition.description?.length > 100 
-          ? competition.description.substring(0, 100) + '...' 
-          : competition.description}
-      </p>
+      {/* Фиксируем высоту описания на 2 строки */}
+      <div className="mt-2 min-h-[20px] line-clamp-2">
+        <p className="text-gray-400 text-sm">
+          {competition.description || 'Нет описания'}
+        </p>
+      </div>
       
-      <div className="mt-4 text-sm text-gray-500">
+      <div className="mt-4 text-sm text-gray-500 flex-grow">
         <div className="flex flex-col sm:flex-row sm:justify-between">
           <span>Начало регистрации:</span>
           <span className="text-gray-400">
