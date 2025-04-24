@@ -50,14 +50,16 @@ const CustomDateTimeInput = ({ value, onChange, placeholder, required = false })
         required={required}
       />
       <div className="absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none">
-        <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-        </svg>
+          <path d="M6 3a1 1 0 00-1 1v1H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V6a2 2 0 00-2-2h-1V4a1 1 0 10-2 0v1H7V4a1 1 0 00-1-1zm13 4H5v12h14V7z" />
+          <path d="M9 11H7v2h2v-2z" />
+          <path d="M13 11h-2v2h2v-2z" />
+          <path d="M17 11h-2v2h2v-2z" />
+          <path d="M9 15H7v2h2v-2z" />
+          <path d="M13 15h-2v2h2v-2z" />
       </div>
     </div>
   );
 };
-
 const CompetitionEdit = () => {
   const { id } = useParams();
   const navigate = useNavigate();

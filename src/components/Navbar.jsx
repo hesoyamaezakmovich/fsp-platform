@@ -84,17 +84,62 @@ const Navbar = ({ user }) => {
           </div>
           
           {/* Профиль и кнопка выхода (на десктопе) */}
-          <div className="hidden md:flex items-center">
-            <Link to="/profile" className="text-gray-300 hover:text-white px-3 py-2 rounded-md">
-              {userProfile?.full_name || user?.email}
-            </Link>
-            <button
-              onClick={handleLogout}
-              className="ml-4 bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-md text-sm"
-            >
-              Выйти
-            </button>
-          </div>
+          <div className="hidden md:flex items-center space-x-4">
+  <div className="flex items-center">
+    <Link className="group relative inline-flex items-center">
+      <div className="relative -left-[15px]"> {/* Добавлено -left-[5px] */}
+        <img 
+          src="../profile.png" 
+          className="flex-shrink-0 rounded-full overflow-hidden object-cover w-10 h-10 z-10"
+        />
+        
+        {/* SVG стрелочка */}
+        <svg 
+          className="absolute -right-5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors"
+          viewBox="0 0 20 20" 
+          fill="currentColor"
+        >
+          <path 
+            fillRule="evenodd" 
+            d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" 
+            clipRule="evenodd" 
+          />
+        </svg>
+      </div>
+      
+      <div className="absolute top-full right-0 mt-2 opacity-0 group-hover:opacity-100 transition-all duration-200 ease-in-out bg-gray-700 rounded-lg shadow-lg p-4 flex flex-col items-center z-20 min-w-[200px] space-y-3">
+        <img 
+          src="../profile.png" 
+          className="rounded-full overflow-hidden object-cover w-16 h-16 mb-2"
+        />
+        
+        <span className="text-white text-sm font-medium text-center">
+          {userProfile?.full_name}
+        </span>
+        
+        <span className="text-white text-sm font-medium text-center">
+          {user?.email}
+        </span>
+        
+        <div className="w-full space-y-2">
+          <Link 
+            to="/profile" 
+            className="block px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition text-center"
+          >
+            К профилю
+          </Link>
+          <button 
+            onClick={handleLogout} 
+            className="w-full px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md transition text-sm"
+          >
+            Выйти
+          </button>
+        </div>
+      </div>
+    </Link>
+  </div>
+</div>
+
         </div>
         
         {/* Мобильное меню */}

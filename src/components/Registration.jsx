@@ -175,24 +175,34 @@ const Registration = () => {
         
         {/* Индикатор прогресса */}
         <div className="mb-6">
-          <div className="flex justify-between">
+          <div className="flex justify-center relative">
+            {/* Линия прогресса */}
+            <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-gray-600 -z-10"></div>
+            <div 
+            className="absolute top-1/2 left-0 h-0.5 bg-blue-500 -z-10" 
+            style={{ 
+              width: `${(step - 1) * 50}%`,
+              transition: 'width 0.3s ease'
+            }}
+            ></div>
+            
             {[1, 2, 3].map((stepNumber) => (
-              <div
-                key={stepNumber}
-                className={`w-8 h-8 rounded-full flex items-center justify-center ${
+              <div key={stepNumber} className="flex flex-col items-center mx-8">
+                <div
+                className={`w-8 h-8 rounded-full flex items-center justify-center relative ${
                   step >= stepNumber ? 'bg-blue-500' : 'bg-gray-600'
                 }`}
-              >
-                {stepNumber}
-              </div>
-            ))}
-          </div>
-          <div className="flex justify-between mt-2">
-            <span className="text-xs text-gray-400">Основное</span>
-            <span className="text-xs text-gray-400">Профиль</span>
-            <span className="text-xs text-gray-400">Завершение</span>
-          </div>
-        </div>
+                >
+                  {stepNumber}
+                  </div>
+                  <span className="text-xs text-gray-400 mt-2">
+                    {stepNumber === 1 ? 'Основное' : 
+                    stepNumber === 2 ? 'Профиль' : 'Завершение'}
+                    </span>
+                    </div>
+                  ))}
+                  </div>
+                </div>
         
         {/* Форма регистрации */}
         <form onSubmit={handleSubmit}>
@@ -350,7 +360,11 @@ const Registration = () => {
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-1">
                   <span className="text-gray-400">Email:</span>
-                  <span>{formData.email}</span>
+                  <span>
+                    {formData.email.length > 14 
+                    ? `${formData.email.substring(0, 14)}...` 
+                    : formData.email}
+                  </span>
                 </div>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-1">

@@ -350,10 +350,11 @@ const CompetitionsList = () => {
             <div className="flex items-end">
               <button
                 onClick={resetFilters}
-                className="w-full py-2 px-4 bg-gray-700 hover:bg-gray-600 text-white rounded-md transition"
+                className="w-full p-2 bg-gray-700 border border-gray-600 rounded"
               >
                 Сбросить фильтры
               </button>
+              
             </div>
           </div>
         </div>

@@ -314,6 +314,9 @@ const CompetitionDetails = () => {
           <>
             <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6">
               <div>
+                <Link to="/competitions" className="text-gray-300 hover:text-white mr-4">
+                  ← К списку соревнований
+                </Link>
                 <h1 className="text-2xl sm:text-3xl font-bold">{competition.name}</h1>
                 <div className="flex flex-wrap gap-2 mt-2">
                   <span
@@ -360,9 +363,6 @@ const CompetitionDetails = () => {
                 </div>
               </div>
               <div className="mt-4 md:mt-0">
-                <Link to="/competitions" className="text-gray-300 hover:text-white mr-4">
-                  ← К списку соревнований
-                </Link>
                 <div className="mt-2 md:mt-0 space-y-2 md:space-y-0 md:flex md:space-x-2">
                   {canApplyAsRegionalRep() && (
                     <button
