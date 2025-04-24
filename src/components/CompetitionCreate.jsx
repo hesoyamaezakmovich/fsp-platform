@@ -1,23 +1,11 @@
-// src/components/CompetitionCreate.jsx
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import Navbar from './Navbar';
 import { canCreateFederalCompetition, canCreateRegionalCompetition } from '../utils/roleUtils';
 
-// Компонент ввода даты и времени
 const CustomDateTimeInput = ({ value, onChange, placeholder, required = false }) => {
   const dateValue = value ? new Date(value) : null;
-
-  //const formatDate = (date) => {
-    //if (!date) return '';
-    //const day = date.getDate().toString().padStart(2, '0');
-    //const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    //const year = date.getFullYear();
-    //const hours = date.getHours().toString().padStart(2, '0');
-    //const minutes = date.getMinutes().toString().padStart(2, '0');
-    //return `${day}.${month}.${year} ${hours}:${minutes}`;
-  //};
 
   const handleChange = (e) => {
     try {
@@ -60,9 +48,9 @@ const CustomDateTimeInput = ({ value, onChange, placeholder, required = false })
   );
 };
 
-// Основной компонент создания соревнования
 const CompetitionCreate = () => {
   const navigate = useNavigate();
+  const location = useLocation(); // Получаем информацию о текущем маршруте и состоянии
   const [user, setUser] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -70,7 +58,6 @@ const CompetitionCreate = () => {
   const [regions, setRegions] = useState([]);
   const [error, setError] = useState(null);
 
-  // Состояние формы
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -86,7 +73,6 @@ const CompetitionCreate = () => {
     status: 'черновик'
   });
 
-  // Получение роли пользователя при загрузке
   useEffect(() => {
     const fetchUser = async () => {
       const { data } = await supabase.auth.getUser();
@@ -114,7 +100,6 @@ const CompetitionCreate = () => {
     fetchUser();
   }, []);
 
-  // Функция для проверки и создания профиля пользователя
   const ensureUserProfile = async (currentUser) => {
     try {
       const { data: userData, error: userError } = await supabase
@@ -153,7 +138,6 @@ const CompetitionCreate = () => {
     }
   };
 
-  // Загрузка справочных данных
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -179,7 +163,6 @@ const CompetitionCreate = () => {
     fetchData();
   }, []);
 
-  // Обработчик изменения полей
   const handleChange = (e) => {
     const { name, value } = e.target;
 
@@ -226,7 +209,6 @@ const CompetitionCreate = () => {
     }
   };
 
-  // Обработчик изменения дат
   const handleDateChange = (value, field) => {
     setFormData({
       ...formData,
@@ -234,7 +216,6 @@ const CompetitionCreate = () => {
     });
   };
 
-  // Обработчик отправки формы
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -316,7 +297,6 @@ const CompetitionCreate = () => {
     }
   };
 
-  // Валидация дат
   const validateDates = () => {
     const regStart = new Date(formData.registration_start_date);
     const regEnd = new Date(formData.registration_end_date);
@@ -356,6 +336,9 @@ const CompetitionCreate = () => {
     );
   }
 
+  // Проверяем, пришел ли пользователь из AdminPanel
+  const returnPath = location.state?.fromAdminPanel ? '/admin-panel' : '/competitions';
+
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       <Navbar user={user} />
@@ -363,7 +346,7 @@ const CompetitionCreate = () => {
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-6">
           <h1 className="text-xl sm:text-2xl font-bold mb-2 sm:mb-0">Создание соревнования</h1>
           <Link
-            to="/competitions"
+            to={returnPath}
             className="text-gray-300 hover:text-white mb-4 sm:mb-0"
           >
             ← Вернуться к списку
@@ -555,7 +538,7 @@ const CompetitionCreate = () => {
             </div>
             <div className="flex flex-col sm:flex-row sm:justify-end space-y-3 sm:space-y-0 sm:space-x-4 mt-8">
               <Link
-                to="/competitions"
+                to={returnPath}
                 className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md transition text-center"
               >
                 Отмена

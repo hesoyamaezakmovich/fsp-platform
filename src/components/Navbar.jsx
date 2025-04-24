@@ -1,13 +1,13 @@
-// src/components/Navbar.jsx
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
+import { canCreateCompetition } from '../utils/roleUtils';
 
 const Navbar = ({ user }) => {
   const [userProfile, setUserProfile] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [dropdownOpen, setDropdownOpen] = useState(false); // Новое состояние для dropdown
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -46,19 +46,21 @@ const Navbar = ({ user }) => {
   };
 
   const toggleDropdown = () => {
-    setDropdownOpen(!dropdownOpen); // Переключение состояния dropdown
+    setDropdownOpen(!dropdownOpen);
   };
 
   return (
     <nav className="bg-gray-800 border-b border-gray-700">
       <div className="container mx-auto px-4">
-        <div className="flex justify-between h-16">
-          {/* Логотип и кнопка меню (на мобильных) */}
-          <div className="flex items-center">
-            <Link to="/dashboard" className="text-xl font-bold text-blue-500">ФСП</Link>
+        <div className="flex justify-between items-center h-16">
+          {/* Логотип (остается слева) */}
+          <Link to="/dashboard" className="text-xl font-bold text-blue-500">
+            <img src="/image/logo.png" alt="Logo" width="80" height="80" />
+          </Link>
 
-            {/* Навигационные ссылки (на десктопе) */}
-            <div className="hidden md:flex ml-10 space-x-4">
+          {/* Центрированные навигационные ссылки */}
+          <div className="flex-1 flex justify-center">
+            <div className="hidden md:flex space-x-4">
               <Link to="/dashboard" className="text-gray-300 hover:text-white px-3 py-2 rounded-md">
                 Главная
               </Link>
@@ -66,8 +68,13 @@ const Navbar = ({ user }) => {
                 Соревнования
               </Link>
               <Link to="/teams" className="text-gray-300 hover:text-white px-3 py-2 rounded-md">
-                Команды
+                Мои команды
               </Link>
+              {userRole && canCreateCompetition(userRole) && (
+                <Link to="/admin-panel" className="text-gray-300 hover:text-white px-3 py-2 rounded-md">
+                  Панель управления
+                </Link>
+              )}
               {userRole === 'fsp_admin' && (
                 <Link to="/analytics" className="text-gray-300 hover:text-white px-3 py-2 rounded-md">
                   Аналитика
@@ -76,7 +83,6 @@ const Navbar = ({ user }) => {
             </div>
           </div>
 
-          {/* Кнопка меню для мобильных устройств */}
           <div className="md:hidden flex items-center">
             <button
               onClick={toggleMenu}
@@ -95,7 +101,6 @@ const Navbar = ({ user }) => {
             </button>
           </div>
 
-          {/* Профиль и кнопка выхода (на десктопе) */}
           <div className="hidden md:flex items-center space-x-4">
             <div className="flex items-center">
               <div className="relative">
@@ -105,8 +110,6 @@ const Navbar = ({ user }) => {
                     className="flex-shrink-0 rounded-full overflow-hidden object-cover w-10 h-10 z-10"
                     alt="Профиль"
                   />
-
-                  {/* SVG стрелочка */}
                   <svg
                     className="ml-2 w-4 h-4 text-gray-400 hover:text-gray-600 transition-colors"
                     viewBox="0 0 20 20"
@@ -120,7 +123,6 @@ const Navbar = ({ user }) => {
                   </svg>
                 </div>
 
-                {/* Dropdown меню */}
                 {dropdownOpen && (
                   <div className="absolute top-full right-0 mt-2 bg-gray-700 rounded-lg shadow-lg p-4 flex flex-col items-center z-20 min-w-[200px] space-y-3">
                     <img
@@ -128,20 +130,17 @@ const Navbar = ({ user }) => {
                       className="rounded-full overflow-hidden object-cover w-16 h-16 mb-2"
                       alt="Профиль"
                     />
-
                     <span className="text-white text-sm font-medium text-center">
                       {userProfile?.full_name}
                     </span>
-
                     <span className="text-white text-sm font-medium text-center">
                       {user?.email}
                     </span>
-
                     <div className="w-full space-y-2">
                       <Link
                         to="/profile"
                         className="block px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition text-center"
-                        onClick={() => setDropdownOpen(false)} // Закрыть dropdown при клике
+                        onClick={() => setDropdownOpen(false)}
                       >
                         К профилю
                       </Link>
@@ -159,7 +158,6 @@ const Navbar = ({ user }) => {
           </div>
         </div>
 
-        {/* Мобильное меню */}
         {menuOpen && (
           <div className="md:hidden">
             <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
@@ -182,8 +180,17 @@ const Navbar = ({ user }) => {
                 className="block text-gray-300 hover:text-white px-3 py-2 rounded-md"
                 onClick={() => setMenuOpen(false)}
               >
-                Команды
+                Мои команды
               </Link>
+              {userRole && canCreateCompetition(userRole) && (
+                <Link
+                  to="/admin-panel"
+                  className="block text-gray-300 hover:text-white px-3 py-2 rounded-md"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  Панель управления
+                </Link>
+              )}
               {userRole === 'fsp_admin' && (
                 <Link
                   to="/analytics"

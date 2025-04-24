@@ -1,6 +1,5 @@
-// src/components/CompetitionDetails.jsx
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import Navbar from './Navbar';
 import TeamApplicationForm from './TeamApplicationForm';
@@ -11,6 +10,7 @@ import { canApplyToRegionalCompetition, canApplyToFederalAsRegionalRep } from '.
 
 const CompetitionDetails = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [competition, setCompetition] = useState(null);
   const [user, setUser] = useState(null);
   const [userDetails, setUserDetails] = useState(null);
@@ -306,6 +306,10 @@ const CompetitionDetails = () => {
   const allowsIndividual = ['индивидуальное', 'командное_и_индивидуальное'].includes(competition?.participation_type);
   const allowsTeam = ['командное', 'командное_и_индивидуальное'].includes(competition?.participation_type);
 
+  const handleGoBack = () => {
+    navigate(-1);
+  };
+
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       <Navbar user={user} />
@@ -314,9 +318,9 @@ const CompetitionDetails = () => {
           <>
             <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6">
               <div>
-                <Link to="/competitions" className="text-gray-300 hover:text-white mr-4">
-                  ← К списку соревнований
-                </Link>
+                <button onClick={handleGoBack} className="text-gray-300 hover:text-white mr-4">
+                  ← Вернуться назад
+                </button>
                 <h1 className="text-2xl sm:text-3xl font-bold">{competition.name}</h1>
                 <div className="flex flex-wrap gap-2 mt-2">
                   <span

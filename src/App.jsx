@@ -1,9 +1,7 @@
-// src/App.jsx с добавленным маршрутом для компонента аналитики
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 
-// Импорт компонентов
 import Registration from './components/Registration';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
@@ -18,15 +16,14 @@ import ForgotPassword from './components/ForgotPassword';
 import ResetPassword from './components/ResetPassword';
 import CompetitionEdit from './components/CompetitionEdit';
 import CompetitionResultsForm from './components/CompetitionResultsForm';
-import AnalyticsDashboard from './components/AnalyticsDashboard'; // Новый импорт
+import AnalyticsDashboard from './components/AnalyticsDashboard';
+import AdminPanel from './components/AdminPanel';
 
-// Компонент для защищенных маршрутов
 const PrivateRoute = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Проверка авторизации пользователя
     const checkUser = async () => {
       const { data } = await supabase.auth.getUser();
       setUser(data?.user || null);
@@ -35,7 +32,6 @@ const PrivateRoute = ({ children }) => {
     
     checkUser();
     
-    // Подписка на изменения статуса авторизации
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (event, session) => {
         setUser(session?.user || null);
@@ -44,7 +40,6 @@ const PrivateRoute = ({ children }) => {
     );
     
     return () => {
-      // Отписка при размонтировании компонента
       if (authListener?.subscription) {
         authListener.subscription.unsubscribe();
       }
@@ -52,7 +47,6 @@ const PrivateRoute = ({ children }) => {
   }, []);
   
   if (loading) {
-    // Отображение загрузки
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-900 text-white">
         <div className="text-lg">Загрузка...</div>
@@ -60,12 +54,10 @@ const PrivateRoute = ({ children }) => {
     );
   }
   
-  // Если пользователь не авторизован, перенаправляем на страницу входа
   if (!user) {
     return <Navigate to="/login" replace />;
   }
   
-  // Если пользователь авторизован, отображаем запрошенную страницу
   return children;
 };
 
@@ -73,14 +65,12 @@ const App = () => {
   return (
     <Router>
       <Routes>
-        {/* Публичные маршруты */}
         <Route path="/register" element={<Registration />} />
         <Route path="/login" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/competitions/:id/results" element={<CompetitionResultsForm />} />
         
-        {/* Защищенные маршруты */}
         <Route path="/dashboard" element={
           <PrivateRoute>
             <Dashboard />
@@ -135,17 +125,20 @@ const App = () => {
           </PrivateRoute>
         } />
         
-        {/* Новый маршрут для аналитики */}
         <Route path="/analytics" element={
           <PrivateRoute>
             <AnalyticsDashboard />
           </PrivateRoute>
         } />
         
-        {/* Перенаправление с главной страницы */}
+        <Route path="/admin-panel" element={
+          <PrivateRoute>
+            <AdminPanel />
+          </PrivateRoute>
+        } />
+        
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         
-        {/* Обработка несуществующих маршрутов */}
         <Route path="*" element={
           <div className="flex items-center justify-center min-h-screen bg-gray-900 text-white">
             <div className="text-center">
